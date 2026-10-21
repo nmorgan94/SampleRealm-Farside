@@ -30,9 +30,12 @@ private:
     AudioPluginAudioProcessor& processorRef;
 
     juce::Slider roomSizeSlider, dampingSlider, widthSlider, mixSlider, sendGainSlider, highpassFreqSlider;
-    
+
+    juce::TextButton spectrumBypassButton;
+
     // Slider attachments to connect UI to parameters
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> roomSizeAttachment, dampingAttachment, widthAttachment, mixAttachment, sendGainAttachment, highpassFreqAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> spectrumBypassAttachment;
     
     CustomLookAndFeel customLookAndFeel;
     

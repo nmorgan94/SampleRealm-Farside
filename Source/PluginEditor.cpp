@@ -19,7 +19,12 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     setupSlider(highpassFreqSlider, 100.0);
     
     addAndMakeVisible(spectrumAnalyzer);
-    
+
+    // Lit while the analyzer runs, dimmed once it is bypassed
+    addAndMakeVisible(spectrumBypassButton);
+    spectrumBypassButton.setButtonText("ANALYSER");
+    spectrumBypassButton.setClickingTogglesState(true);
+
     // Create attachments to connect sliders to parameters
     auto& apvts = processorRef.getAPVTS();
     roomSizeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "roomSize", roomSizeSlider);
@@ -28,6 +33,7 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "mix", mixSlider);
     sendGainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "sendGain", sendGainSlider);
     highpassFreqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "highpassFreq", highpassFreqSlider);
+    spectrumBypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "spectrumBypass", spectrumBypassButton);
 
     setSize(700, 250);
 }
@@ -145,7 +151,10 @@ void AudioPluginAudioProcessorEditor::resized()
     spectrumAnalyzer.setBounds(analyzerArea);
     
     titleBounds = juce::Rectangle<int>(0, 0, bounds.getWidth(), 100);
-    
+
+    // Tucked into the top right corner, above the version number
+    spectrumBypassButton.setBounds(titleBounds.getRight() - 66, 6, 58, 20);
+
     int sliderSize = 100;
     int labelHeight = 30;
     int sliderTotalHeight = sliderSize + labelHeight;

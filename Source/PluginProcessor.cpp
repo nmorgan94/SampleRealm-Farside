@@ -53,10 +53,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::c
         "Highpass Freq",
         juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.20f),1000.0f));
     
+    // A display toggle rather than a musical control, so hosts should not automate it
     layout.add(std::make_unique<juce::AudioParameterBool>(
         "spectrumBypass",
         "Spectrum Bypass",
-        false));
+        false,
+        juce::AudioParameterBoolAttributes().withAutomatable(false)));
     
     return layout;
 }

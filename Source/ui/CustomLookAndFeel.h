@@ -9,12 +9,19 @@ public:
     static constexpr juce::uint32 primaryRed = 0xffe94560;
     static constexpr juce::uint32 lightPink = 0xffff6b9d;
     static constexpr juce::uint32 darkBlue = 0xff0f3460;
-    
+    static constexpr juce::uint32 offWhite = 0xfff0f0f0;
+
     CustomLookAndFeel()
     {
         setColour(juce::Slider::thumbColourId, juce::Colour(primaryRed));
         setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(primaryRed));
         setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(darkBlue).withAlpha(0.6f));
+
+        // Text only, so the toggle reads as a label: lit when active, dimmed when engaged
+        setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+        setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
+        setColour(juce::TextButton::textColourOffId, juce::Colour(primaryRed).withAlpha(0.8f));
+        setColour(juce::TextButton::textColourOnId, juce::Colour(offWhite).withAlpha(0.3f));
     }
 
     void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
@@ -94,6 +101,11 @@ public:
                      bounds.getCentreY() - centerCircleSize,
                      centerCircleSize * 2.0f,
                      centerCircleSize * 2.0f);
+    }
+
+    juce::Font getTextButtonFont(juce::TextButton&, int) override
+    {
+        return juce::Font(orbitronRegular().withPointHeight(7.0f));
     }
 
     [[nodiscard]] static juce::FontOptions orbitronRegular()
