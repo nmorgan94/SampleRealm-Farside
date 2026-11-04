@@ -1,0 +1,27 @@
+/* Source/ui/CustomLookAndFeel.h and the editor's paint() */
+@theme static {
+  --color-top: #1a1a2e;
+  --color-bottom: #16213e;
+  --color-red: #e94560;
+  --color-pink: #ff6b9d;
+  --color-blue: #0f3460;
+  --color-fg: #f0f0f0;
+  --font-display: Orbitron, var(--font-sans);
+}
+
+@font-face {
+  font-family: Orbitron;
+  font-weight: 400;
+  src: url('../../Assets/Orbitron-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: Orbitron;
+  font-weight: 700;
+  src: url('../../Assets/Orbitron-Bold.ttf') format('truetype');
+}
+
+body {
+  font-family: var(--font-display);
+  color: var(--color-fg);
+}

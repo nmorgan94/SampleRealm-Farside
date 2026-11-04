@@ -1,5 +1,10 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "shared/EffectSettings.h"
+
+#if PLUGIN_WEBVIEW_EDITOR
+ #include "webview/WebViewEditor.h"
+#endif
 
 //==============================================================================
 AudioPluginAudioProcessor::AudioPluginAudioProcessor()
@@ -16,76 +21,6 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 {
-}
-
-//==============================================================================
-juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout()
-{
-    juce::AudioProcessorValueTreeState::ParameterLayout layout;
-    
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "roomSize",
-        "Room Size",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.80f));
-    
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "damping",
-        "Damping",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.80f));
-    
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "width",
-        "Width",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.50f));
-    
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "mix",
-        "Mix",
-        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.50f));
-    
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "sendGain",
-        "Send Gain",
-        juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f),1.0f));
-    
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "highpassFreq",
-        "Highpass Freq",
-        juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.20f),1000.0f));
-    
-    // A display toggle rather than a musical control, so hosts should not automate it
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        "spectrumBypass",
-        "Spectrum Bypass",
-        false,
-        juce::AudioParameterBoolAttributes().withAutomatable(false)));
-    
-    return layout;
-}
-
-void AudioPluginAudioProcessor::updateReverbParameters()
-{
-    reverbParams.roomSize = apvts.getRawParameterValue("roomSize")->load();
-    reverbParams.damping = apvts.getRawParameterValue("damping")->load();
-    reverbParams.width = apvts.getRawParameterValue("width")->load();
-    // Set reverb to 100% wet as we handle dry/wet mixing manually
-    reverbParams.wetLevel = 1.0f;
-    reverbParams.dryLevel = 0.0f;
-    reverbParams.freezeMode = 0.0f;
-    
-    reverb.setParameters(reverbParams);
-}
-
-void AudioPluginAudioProcessor::updateHighpassFilter()
-{
-    float freq = apvts.getRawParameterValue("highpassFreq")->load();
-    auto sampleRate = getSampleRate();
-    
-    if (sampleRate > 0.0)
-    {
-        *highpassFilter1.state = *CoefficientType::makeHighPass(sampleRate, freq);
-        *highpassFilter2.state = *CoefficientType::makeHighPass(sampleRate, freq);
-    }
 }
 
 //==============================================================================
@@ -156,34 +91,13 @@ void AudioPluginAudioProcessor::changeProgramName (int index, const juce::String
 //==============================================================================
 void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    juce::dsp::ProcessSpec spec;
-    spec.sampleRate = sampleRate;
-    spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
-    spec.numChannels = static_cast<juce::uint32>(getTotalNumOutputChannels());
-    
-    reverb.prepare(spec);
-    highpassFilter1.prepare(spec);
-    highpassFilter2.prepare(spec);
-    
-    updateReverbParameters();
-    updateHighpassFilter();
-    
-    // Initialize pre-allocated wet buffer for reverb processing
-    wetBuffer.setSize(static_cast<int>(spec.numChannels), static_cast<int>(spec.maximumBlockSize));
-    wetBuffer.clear();
-    
-    // Initialize FIFO buffer for spectrum analyzer
-    // Mono buffer, 1 second capacity at 48kHz
-    audioFifo.setSize(1, 48000);
-    audioFifo.clear();
-    abstractFifo.reset();
-    hasNewData.store(false, std::memory_order_release);
-    
+    effect.prepare (sampleRate, samplesPerBlock, getTotalNumOutputChannels());
+    spectrumTap.reset();
 }
 
 void AudioPluginAudioProcessor::releaseResources()
 {
-    reverb.reset();
+    effect.reset();
 }
 
 bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -223,79 +137,15 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // Update parameters from APVTS
-    updateReverbParameters();
-    updateHighpassFilter();
-    
-    // Get parameter values
-    float mix = apvts.getRawParameterValue("mix")->load();
-    float sendGain = apvts.getRawParameterValue("sendGain")->load();
-    float dryLevel = 1.0f - mix;
-    
-    // Copy input to pre-allocated wet buffer
-    auto numSamples = buffer.getNumSamples();
-    for (int channel = 0; channel < totalNumOutputChannels; ++channel)
-        wetBuffer.copyFrom(channel, 0, buffer, channel, 0, numSamples);
-    
-    // Process wet signal: highpass filter (24 dB/oct) -> gain -> reverb
-    juce::dsp::AudioBlock<float> wetBlock(wetBuffer.getArrayOfWritePointers(),
-                                          static_cast<size_t>(totalNumOutputChannels),
-                                          0, static_cast<size_t>(numSamples));
-    juce::dsp::ProcessContextReplacing<float> wetContext(wetBlock);
-    
-    // Apply 24 dB/oct highpass filter (bypass at 20 Hz to save CPU)
-    float hpFreq = apvts.getRawParameterValue("highpassFreq")->load();
-    if (hpFreq > 20.0f)
+    effect.setSettings (makeEffectSettings ([this] (const ParameterSpecs::Spec& spec) -> float
     {
-        highpassFilter1.process(wetContext);
-        highpassFilter2.process(wetContext);
-    }
-    
-    // Apply send gain
-    wetBuffer.applyGain(sendGain);
-    
-    // Apply reverb to wet signal
-    reverb.process(wetContext);
-    
-    // Mix dry and wet signals
-    for (int channel = 0; channel < totalNumOutputChannels; ++channel)
-    {
-        buffer.applyGain(channel, 0, buffer.getNumSamples(), dryLevel);
-        buffer.addFrom(channel, 0, wetBuffer, channel, 0, buffer.getNumSamples(), mix);
-    }
+        return *apvts.getRawParameterValue (spec.id);
+    }));
 
-    // Check if spectrum analyzer is bypassed
-    bool spectrumBypassed = static_cast<bool>(apvts.getRawParameterValue("spectrumBypass")->load());
-    
-    // Only process spectrum data if not bypassed
-    if (!spectrumBypassed)
-    {
-        // Get write positions from the lock-free FIFO
-        int start1, size1, start2, size2;
-        abstractFifo.prepareToWrite(numSamples, start1, size1, start2, size2);
-        
-        // Helper lambda to write a region (mix stereo to mono)
-        auto writeRegion = [&](int fifoStart, int regionSize, int bufferOffset)
-        {
-            for (int i = 0; i < regionSize; ++i)
-            {
-                float sample = 0.0f;
-                for (int channel = 0; channel < totalNumOutputChannels; ++channel)
-                    sample += buffer.getSample(channel, bufferOffset + i);
-                sample /= static_cast<float>(totalNumOutputChannels);
-                
-                audioFifo.setSample(0, fifoStart + i, sample);
-            }
-        };
-        
-        // Write both regions (second only if wraparound occurred)
-        if (size1 > 0) writeRegion(start1, size1, 0);
-        if (size2 > 0) writeRegion(start2, size2, size1);
-        
-        // Mark write complete and signal UI thread
-        abstractFifo.finishedWrite(size1 + size2);
-        hasNewData.store(true, std::memory_order_release);
-    }
+    effect.process (buffer, Transport::from (getPlayHead()));
+
+    if (! isSpectrumBypassed())
+        spectrumTap.push (buffer);
 }
 
 //==============================================================================
@@ -306,7 +156,11 @@ bool AudioPluginAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 {
+   #if PLUGIN_WEBVIEW_EDITOR
+    return new WebViewEditor (*this);
+   #else
     return new AudioPluginAudioProcessorEditor (*this);
+   #endif
 }
 
 //==============================================================================

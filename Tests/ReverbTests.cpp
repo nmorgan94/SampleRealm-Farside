@@ -8,38 +8,60 @@ using namespace TestHelpers;
 using Catch::Matchers::WithinAbs;
 
 //==============================================================================
-TEST_CASE_METHOD (ProcessorFixture, "Float parameters have the expected range and default", "[parameters]")
+// What hosts and saved sessions see. Change it only on purpose
+TEST_CASE_METHOD (ProcessorFixture, "Parameters match the snapshot hosts rely on", "[parameters]")
 {
-    const auto [id, name, rangeStart, rangeEnd, defaultValue] =
-        GENERATE (table<const char*, const char*, float, float, float> ({
-            { "roomSize",     "Room Size",      0.0f,     1.0f,    0.80f },
-            { "damping",      "Damping",        0.0f,     1.0f,    0.80f },
-            { "width",        "Width",          0.0f,     1.0f,    0.50f },
-            { "mix",          "Mix",            0.0f,     1.0f,    0.50f },
-            { "sendGain",     "Send Gain",      0.0f,     2.0f,    1.00f },
-            { "highpassFreq", "Highpass Freq", 20.0f, 20000.0f, 1000.00f },
-        }));
+    struct Expected
+    {
+        const char* id;
+        int versionHint;
+        const char* name;
+        const char* label;
+        float start, end, interval, skew, defaultValue;
+        std::array<const char*, 3> textAt0HalfAnd1;
+        bool automatable;
+        bool isBool;
+    };
 
-    CAPTURE (id);
+    const std::vector<Expected> snapshot {
+        { "roomSize",       1, "Room Size",       "",  0.0f,     1.0f, 0.01f, 1.0f,    0.8f, { "0.00", "0.50", "1.00" },  true,  false },
+        { "damping",        1, "Damping",         "",  0.0f,     1.0f, 0.01f, 1.0f,    0.8f, { "0.00", "0.50", "1.00" },  true,  false },
+        { "width",          1, "Width",           "",  0.0f,     1.0f, 0.01f, 1.0f,    0.5f, { "0.00", "0.50", "1.00" },  true,  false },
+        { "mix",            1, "Mix",             "",  0.0f,     1.0f, 0.01f, 1.0f,    0.5f, { "0.00", "0.50", "1.00" },  true,  false },
+        { "sendGain",       1, "Send Gain",       "",  0.0f,     2.0f, 0.01f, 1.0f,    1.0f, { "0.00", "1.00", "2.00" },  true,  false },
+        { "highpassFreq",   1, "Highpass Freq",   "", 20.0f, 20000.0f,  1.0f, 0.2f, 1000.0f, { "20", "644", "20000" },    true,  false },
+        { "spectrumBypass", 1, "Spectrum Bypass", "",  0.0f,     1.0f,  1.0f, 1.0f,    0.0f, { "Off", "On", "On" },       false, true  },
+    };
 
-    auto* parameter = dynamic_cast<juce::AudioParameterFloat*> (
-        processor.getAPVTS().getParameter (id));
+    const auto& parameters = processor.getParameters();
+    REQUIRE (static_cast<size_t> (parameters.size()) == snapshot.size());
 
-    REQUIRE (parameter != nullptr);
-    CHECK (parameter->getName (100) == name);
-    CHECK_THAT (parameter->range.start, WithinAbs (rangeStart, 1.0e-6));
-    CHECK_THAT (parameter->range.end, WithinAbs (rangeEnd, 1.0e-6));
-    CHECK_THAT (parameter->get(), WithinAbs (defaultValue, 1.0e-6));
-}
+    for (size_t i = 0; i < snapshot.size(); ++i)
+    {
+        const auto& expected = snapshot[i];
+        CAPTURE (i, expected.id);
 
-TEST_CASE_METHOD (ProcessorFixture, "Spectrum bypass is a bool parameter, off by default", "[parameters]")
-{
-    auto* parameter = dynamic_cast<juce::AudioParameterBool*> (
-        processor.getAPVTS().getParameter ("spectrumBypass"));
+        auto* parameter = dynamic_cast<juce::RangedAudioParameter*> (parameters[static_cast<int> (i)]);
+        REQUIRE (parameter != nullptr);
 
-    REQUIRE (parameter != nullptr);
-    CHECK (parameter->getName (100) == "Spectrum Bypass");
-    CHECK_FALSE (parameter->get());
+        CHECK (parameter->getParameterID() == expected.id);
+        CHECK (parameter->getVersionHint() == expected.versionHint);
+        CHECK (parameter->getName (100) == expected.name);
+        CHECK (parameter->getLabel() == expected.label);
+        CHECK (parameter->isAutomatable() == expected.automatable);
+        CHECK ((dynamic_cast<juce::AudioParameterBool*> (parameter) != nullptr) == expected.isBool);
+
+        const auto& range = parameter->getNormalisableRange();
+        CHECK_THAT (range.start, WithinAbs (expected.start, 1.0e-6));
+        CHECK_THAT (range.end, WithinAbs (expected.end, 1.0e-6));
+        CHECK_THAT (range.interval, WithinAbs (expected.interval, 1.0e-6));
+        CHECK_THAT (range.skew, WithinAbs (expected.skew, 1.0e-6));
+        CHECK_THAT (parameter->convertFrom0to1 (parameter->getDefaultValue()), WithinAbs (expected.defaultValue, 1.0e-4));
+
+        CHECK (parameter->getText (0.0f, 100) == expected.textAt0HalfAnd1[0]);
+        CHECK (parameter->getText (0.5f, 100) == expected.textAt0HalfAnd1[1]);
+        CHECK (parameter->getText (1.0f, 100) == expected.textAt0HalfAnd1[2]);
+    }
 }
 
 //==============================================================================
@@ -61,9 +83,9 @@ TEST_CASE_METHOD (ProcessorFixture, "Output stays finite for any block size, inp
             {
                 CAPTURE (sendGain, highpassFreq, mix);
 
-                setParameter (processor, "sendGain", sendGain);
-                setParameter (processor, "highpassFreq", highpassFreq);
-                setParameter (processor, "mix", mix);
+                setParameter (processor, Parameters::sendGainId, sendGain);
+                setParameter (processor, Parameters::highpassFreqId, highpassFreq);
+                setParameter (processor, Parameters::mixId, mix);
 
                 auto buffer = makeSineBuffer (2, numSamples, 440.0f, amplitude);
                 process (processor, buffer);
@@ -91,8 +113,8 @@ TEST_CASE_METHOD (ProcessorFixture, "Only matching mono or stereo layouts are su
 //==============================================================================
 TEST_CASE_METHOD (ProcessorFixture, "State round trips into a new instance", "[state]")
 {
-    setParameter (processor, "roomSize", 0.25f);
-    setParameter (processor, "highpassFreq", 440.0f);
+    setParameter (processor, Parameters::roomSizeId, 0.25f);
+    setParameter (processor, Parameters::highpassFreqId, 440.0f);
 
     juce::MemoryBlock state;
     processor.getStateInformation (state);
@@ -100,13 +122,13 @@ TEST_CASE_METHOD (ProcessorFixture, "State round trips into a new instance", "[s
     AudioPluginAudioProcessor restored;
     restored.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
 
-    CHECK_THAT (getParameter (restored, "roomSize"), WithinAbs (0.25, 1.0e-4));
-    CHECK_THAT (getParameter (restored, "highpassFreq"), WithinAbs (440.0, 1.0e-4));
+    CHECK_THAT (getParameter (restored, Parameters::roomSizeId), WithinAbs (0.25, 1.0e-4));
+    CHECK_THAT (getParameter (restored, Parameters::highpassFreqId), WithinAbs (440.0, 1.0e-4));
 }
 
 TEST_CASE_METHOD (ProcessorFixture, "Invalid state is ignored", "[state]")
 {
-    setParameter (processor, "roomSize", 0.25f);
+    setParameter (processor, Parameters::roomSizeId, 0.25f);
 
     SECTION ("Random bytes")
     {
@@ -126,5 +148,5 @@ TEST_CASE_METHOD (ProcessorFixture, "Invalid state is ignored", "[state]")
         processor.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
     }
 
-    CHECK_THAT (getParameter (processor, "roomSize"), WithinAbs (0.25, 1.0e-4));
+    CHECK_THAT (getParameter (processor, Parameters::roomSizeId), WithinAbs (0.25, 1.0e-4));
 }

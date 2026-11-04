@@ -48,7 +48,7 @@ The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so
 
 #### Spectrum Bypass
 
-A `spectrumBypass` parameter clears the display and stops the audio thread writing to the FIFO, for hosts where the analyzer isn't worth the CPU. It is reachable through host automation only; there is no on-screen control.
+**ANALYSER**, in the top right, toggles a `spectrumBypass` parameter that clears the display and stops the audio thread writing to the FIFO, for hosts where the analyzer isn't worth the CPU. Hosts can't automate it.
 
 
 ## System Requirements
@@ -74,7 +74,10 @@ On both, mono or stereo, and the input layout must match the output.
   - **Windows**: Visual Studio 2022 or later with the "Desktop development with C++" workload
 - Git
 
-JUCE is fetched automatically at configure time via CPM - there is no submodule to initialize.
+JUCE is fetched automatically at configure time via CPM into `.cpm-cache/`, shared by every preset and by `wasm/` -
+there is no submodule to initialize. A build folder made before the cache needs its `_deps/juce-*` removed first.
+
+The web demo also needs Emscripten (`brew install emscripten`) and Node 24+.
 
 ## Commands
 
@@ -88,6 +91,7 @@ workflow configures, builds and, for tests, runs in one go.
 | Run the unit tests | `cmake --workflow --preset unit` |
 | Run the unit tests and pluginval | `cmake --workflow --preset test` |
 | Run all tests against a Release build | `cmake --workflow --preset test-release` |
+| Build the plugin with the WebView editor (Release) | `cmake --workflow --preset webview` |
 | Launch the Standalone app (Debug) | `cmake --build --preset run` |
 | Install for your DAW: **macOS** | Automatic on every build |
 | Install for your DAW: **Windows** | `cmake --build --preset install-windows`, from an administrator prompt |
@@ -113,8 +117,9 @@ ctest --preset debug                            # test
 
 Unit tests live in `Tests/` and use [Catch2](https://github.com/catchorg/Catch2). They build into a
 `Reverb_Tests` executable that links the plugin's code and drives the processor directly, checking
-parameter ranges and defaults, bus layouts, state save and restore, and that the output stays finite
-across block sizes and parameter settings.
+a snapshot of every parameter as hosts see it, bus layouts, state save and restore, that the output
+stays finite across block sizes and parameter settings, and that `Effect` matches the `juce_dsp`
+chain it replaced.
 
 Add a `.cpp` file to `Tests/` and reconfigure to pick it up. `Tests/TestHelpers.h` has helpers for
 setting parameters and processing buffers. Set `-DENABLE_UNIT_TESTS=OFF` to skip them entirely.
@@ -149,6 +154,30 @@ validate the plugin too, which takes longer.
 
 Each run's page lists the plugins under **Artifacts** for 30 days: `Reverb-macOS.tar.gz` (VST3 and
 AU) and `Reverb-Windows.tar.gz` (VST3). They are unsigned.
+
+## Parameters
+
+`Source/shared/ParameterSpecs.h` is the only parameter list, read by the plugin, the wasm engine and
+the web UI. The snapshot test in `Tests/ReverbTests.cpp` pins what hosts and saved sessions see.
+
+## Web Demo and WebView Editor
+
+| Task | Command |
+|---|---|
+| Build and test the demo (engine and UI tests) | `cd wasm && cmake --workflow --preset wasm` |
+| Serve the demo with live reload at http://localhost:8099 | `cd webui && npm run serve` |
+| Typecheck and test the UI on their own | `cd webui && npm run typecheck && npm test` |
+| Build the plugin with the WebView editor | `cmake --workflow --preset webview` |
+
+- The demo builds to `wasm/build-wasm/SampleRealm-Reverb-<version>/`, named from `COMPANY_NAME`,
+  `project()` and `VERSION` in `CMakeLists.txt`. Upload that folder; the site embeds its `index.html` in an iframe.
+  [`wasm.yml`](.github/workflows/wasm.yml) builds the same folder on GitHub as an artifact of that name, run by hand:
+  **Actions → Web demo → Run workflow**, or `gh workflow run wasm.yml`.
+- The demo's input is made by `webui/src/demo/loop.ts`. For a recording, add it to
+  `webui/public/demo/` as AAC (`.m4a`) so Safari can decode it, and decode it in `startAudio`.
+- The demo's spectrum comes from a Web Audio `AnalyserNode`, so it is windowed and looks smoother than the plugin's.
+- The `webview` build installs over the native one; run the `release` workflow to switch back.
+- Delete `wasm/patches/juce-wasm.patch` once JUCE fixes its wasm support.
 
 ## Debugging in Xcode
 

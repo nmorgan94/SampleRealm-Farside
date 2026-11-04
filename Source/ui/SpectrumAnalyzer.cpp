@@ -8,12 +8,7 @@ SpectrumAnalyzer::SpectrumAnalyzer(AudioPluginAudioProcessor& proc)
     // Make component transparent
     setOpaque(false);
     
-    // Initialize arrays to zero
-    std::fill(fftData.begin(), fftData.end(), 0.0f);
-    std::fill(fifo.begin(), fifo.end(), 0.0f);
-    std::fill(scopeData.begin(), scopeData.end(), 0.0f);
-    
-    startTimerHz(30);
+    startTimerHz(SpectrumScope::updateHz);
 }
 
 //==============================================================================
@@ -30,10 +25,10 @@ void SpectrumAnalyzer::paint(juce::Graphics& g)
     juce::Path spectrumPath;
     spectrumPath.startNewSubPath(0, height);
     
-    for (int i = 0; i < scopeSize; ++i)
+    for (int i = 0; i < SpectrumScope::scopeSize; ++i)
     {
-        auto x = juce::jmap(static_cast<float>(i), 0.0f, static_cast<float>(scopeSize - 1), 0.0f, width);
-        auto y = juce::jmap(scopeData[static_cast<size_t>(i)], 0.0f, 1.0f, height, 0.0f);
+        auto x = juce::jmap(static_cast<float>(i), 0.0f, static_cast<float>(SpectrumScope::scopeSize - 1), 0.0f, width);
+        auto y = juce::jmap(scope.getScope()[static_cast<size_t>(i)], 0.0f, 1.0f, height, 0.0f);
         spectrumPath.lineTo(x, y);
     }
     
@@ -61,9 +56,9 @@ void SpectrumAnalyzer::drawFrequencyMarkers(juce::Graphics& g, float width, floa
     // Lambda to draw a single frequency marker
     auto drawMarker = [&](float freq, const juce::String& label)
     {
-        if (freq < minFreq || freq > maxFreq) return;
+        if (freq < SpectrumScope::minFreq || freq > SpectrumScope::maxFreq) return;
         
-        auto freqProportion = std::log(freq / minFreq) / std::log(maxFreq / minFreq);
+        auto freqProportion = std::log(freq / SpectrumScope::minFreq) / std::log(SpectrumScope::maxFreq / SpectrumScope::minFreq);
         auto x = freqProportion * width;
         
         if (x >= 0 && x <= width)
@@ -91,99 +86,6 @@ void SpectrumAnalyzer::drawFrequencyMarkers(juce::Graphics& g, float width, floa
 //==============================================================================
 void SpectrumAnalyzer::timerCallback()
 {
-    // Check if spectrum analyzer is bypassed
-    bool spectrumBypassed = static_cast<bool>(processor.getAPVTS().getRawParameterValue("spectrumBypass")->load());
-    if (spectrumBypassed)
-    {
-        // Clear the display when bypassed
-        std::fill(scopeData.begin(), scopeData.end(), 0.0f);
+    if (scope.update(processor.getSpectrumTap(), processor.getSampleRate(), processor.isSpectrumBypassed()))
         repaint();
-        return;
-    }
-    
-    // Check if processor has new audio data available
-    if (processor.getHasNewData().load(std::memory_order_acquire))
-    {
-        auto& abstractFifo = processor.getAbstractFifo();
-        auto& audioFifo = processor.getAudioFifo();
-        
-        // Read available samples from the lock-free FIFO
-        int start1, size1, start2, size2;
-        abstractFifo.prepareToRead(abstractFifo.getNumReady(), start1, size1, start2, size2);
-        
-        // Handle both regions (wraparound in circular buffer)
-        if (size1 > 0) pushSamplesIntoFifo(audioFifo.getReadPointer(0, start1), size1);
-        if (size2 > 0) pushSamplesIntoFifo(audioFifo.getReadPointer(0, start2), size2);
-        
-        // Mark samples as read
-        abstractFifo.finishedRead(size1 + size2);
-        processor.getHasNewData().store(false, std::memory_order_release);
-    }
-    
-    // Process and display FFT if ready
-    if (nextFFTBlockReady)
-    {
-        drawNextFrameOfSpectrum();
-        nextFFTBlockReady = false;
-        repaint();
-    }
-}
-
-void SpectrumAnalyzer::pushSamplesIntoFifo(const float* samples, int numSamples)
-{
-    // Copy samples into our local FIFO buffer
-    for (int i = 0; i < numSamples; ++i)
-    {
-        fifo[static_cast<size_t>(fifoIndex)] = samples[i];
-        fifoIndex++;
-        
-        // When we have enough samples for FFT, prepare for processing
-        if (fifoIndex == fftSize)
-        {
-            // Copy to FFT buffer (zero-pad the second half for complex FFT)
-            std::fill(fftData.begin(), fftData.end(), 0.0f);
-            std::copy(fifo.begin(), fifo.end(), fftData.begin());
-            
-            nextFFTBlockReady = true;
-            fifoIndex = 0;
-        }
-    }
-}
-
-void SpectrumAnalyzer::drawNextFrameOfSpectrum()
-{
-    // Perform FFT on the collected samples
-    forwardFFT.performFrequencyOnlyForwardTransform(fftData.data());
-    
-    // Find the range of values for normalization
-    auto maxLevel = juce::FloatVectorOperations::findMinAndMax(fftData.data(), fftSize / 2);
-    const float maxMagnitude = juce::jmax(maxLevel.getEnd(), 1e-5f);
-    
-    // Get actual sample rate from processor
-    const float sampleRate = static_cast<float>(processor.getSampleRate());
-    
-    // Map each display point to FFT data with interpolation
-    for (auto i = 0; i < scopeSize; ++i)
-    {
-        auto proportion = static_cast<float>(i) / static_cast<float>(scopeSize - 1);
-        
-        // Logarithmic frequency mapping
-        auto freq = minFreq * std::pow(maxFreq / minFreq, proportion);
-        
-        // Convert frequency to FFT bin (as float for interpolation)
-        auto binFloat = (freq / (sampleRate / 2.0f)) * (fftSize / 2);
-        auto binIndex = static_cast<int>(binFloat);
-        auto binFraction = binFloat - static_cast<float>(binIndex);
-        
-        // Clamp to valid range
-        binIndex = juce::jlimit(0, fftSize / 2 - 2, binIndex);
-        
-        // Linear interpolation between adjacent bins
-        auto mag1 = fftData[static_cast<size_t>(binIndex)];
-        auto mag2 = fftData[static_cast<size_t>(binIndex + 1)];
-        auto interpolatedMag = mag1 + binFraction * (mag2 - mag1);
-        
-        // Normalize to 0-1 range
-        scopeData[static_cast<size_t>(i)] = juce::jmap(interpolatedMag, 0.0f, maxMagnitude, 0.0f, 1.0f);
-    }
 }

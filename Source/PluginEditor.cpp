@@ -27,15 +27,15 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     // Create attachments to connect sliders to parameters
     auto& apvts = processorRef.getAPVTS();
-    roomSizeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "roomSize", roomSizeSlider);
-    dampingAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "damping", dampingSlider);
-    widthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "width", widthSlider);
-    mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "mix", mixSlider);
-    sendGainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "sendGain", sendGainSlider);
-    highpassFreqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "highpassFreq", highpassFreqSlider);
-    spectrumBypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "spectrumBypass", spectrumBypassButton);
+    roomSizeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, Parameters::roomSizeId.getParamID(), roomSizeSlider);
+    dampingAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, Parameters::dampingId.getParamID(), dampingSlider);
+    widthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, Parameters::widthId.getParamID(), widthSlider);
+    mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, Parameters::mixId.getParamID(), mixSlider);
+    sendGainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, Parameters::sendGainId.getParamID(), sendGainSlider);
+    highpassFreqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, Parameters::highpassFreqId.getParamID(), highpassFreqSlider);
+    spectrumBypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, Parameters::spectrumBypassId.getParamID(), spectrumBypassButton);
 
-    setSize(700, 250);
+    setSize(width, height);
 }
 
 void AudioPluginAudioProcessorEditor::setupSlider(juce::Slider& slider, double initialValue)
@@ -86,8 +86,8 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
     juce::ColourGradient gradient(
-        juce::Colour(0xff1a1a2e), bounds.getWidth() / 2, 0,
-        juce::Colour(0xff16213e), bounds.getWidth() / 2, bounds.getHeight(),
+        juce::Colour(CustomLookAndFeel::backgroundTop), bounds.getWidth() / 2, 0,
+        juce::Colour(CustomLookAndFeel::backgroundBottom), bounds.getWidth() / 2, bounds.getHeight(),
         false);
     g.setGradientFill(gradient);
     g.fillAll();

@@ -1,8 +1,9 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
-#include <juce_dsp/juce_dsp.h>
-#include <atomic>
+#include "Parameters.h"
+#include "dsp/Effect.h"
+#include "dsp/SpectrumTap.h"
 
 //==============================================================================
 class AudioPluginAudioProcessor final : public juce::AudioProcessor
@@ -47,34 +48,15 @@ public:
     //==============================================================================
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
     
-    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-    
-    juce::AudioBuffer<float>& getAudioFifo() { return audioFifo; }
-    juce::AbstractFifo& getAbstractFifo() { return abstractFifo; }
-    std::atomic<bool>& getHasNewData() { return hasNewData; }
+    SpectrumTap& getSpectrumTap() { return spectrumTap; }
+    bool isSpectrumBypassed() const { return apvts.getRawParameterValue (ParameterSpecs::spectrumBypass.id)->load() >= 0.5f; }
 
 private:
     //==============================================================================
-    juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters", createParameterLayout() };
+    juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters", Parameters::createLayout() };
     
-    juce::dsp::Reverb reverb;
-    juce::dsp::Reverb::Parameters reverbParams;
-    
-    // Highpass filter for reverb send - 24 dB/oct (two cascaded 12 dB/oct stages)
-    using FilterType = juce::dsp::IIR::Filter<float>;
-    using CoefficientType = juce::dsp::IIR::Coefficients<float>;
-    juce::dsp::ProcessorDuplicator<FilterType, CoefficientType> highpassFilter1;
-    
-    // Pre-allocated buffer for wet signal processing (avoids per-block allocation)
-    juce::AudioBuffer<float> wetBuffer;
-    juce::dsp::ProcessorDuplicator<FilterType, CoefficientType> highpassFilter2;
-    
-    void updateReverbParameters();
-    void updateHighpassFilter();
-    
-    juce::AudioBuffer<float> audioFifo;      // Circular buffer for audio samples
-    juce::AbstractFifo abstractFifo{48000};  // Lock-free FIFO (1 sec at 48kHz)
-    std::atomic<bool> hasNewData{false};     // Signals UI thread that data is available
+    Effect effect;
+    SpectrumTap spectrumTap;
     
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)

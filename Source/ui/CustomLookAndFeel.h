@@ -10,6 +10,8 @@ public:
     static constexpr juce::uint32 lightPink = 0xffff6b9d;
     static constexpr juce::uint32 darkBlue = 0xff0f3460;
     static constexpr juce::uint32 offWhite = 0xfff0f0f0;
+    static constexpr juce::uint32 backgroundTop = 0xff1a1a2e;
+    static constexpr juce::uint32 backgroundBottom = 0xff16213e;
 
     CustomLookAndFeel()
     {
