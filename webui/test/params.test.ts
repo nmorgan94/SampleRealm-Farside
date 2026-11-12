@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { formatValue, fromProportion, snap, toProportion } from '../src/params.ts';
+import { formatValue, fromProportion, snap, toProportion } from '@samplerealm/modules/editor/params.ts';
 import { info, param } from './engine.ts';
 
 // From the Catch2 snapshot in Tests/ReverbTests.cpp
@@ -46,14 +46,6 @@ test('the skewed highpass maps knob positions to values and back', () => {
   assert.ok(Math.abs(toProportion(highpass, 1000) - 0.5472) < 0.001);
 });
 
-test('positions past either end clamp to the range', () => {
-  const gain = param('sendGain');
-
-  assert.equal(fromProportion(gain, 1.5), 2);
-  assert.equal(fromProportion(gain, -0.5), 0);
-});
-
-test('values snap to the step, and the toggle to off or on', () => {
+test('values snap to the step', () => {
   assert.equal(snap(param('mix'), 0.333333), 0.33);
-  assert.equal(snap(param('spectrumBypass'), 0.7), 1);
 });

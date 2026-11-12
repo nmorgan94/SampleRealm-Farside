@@ -19,28 +19,26 @@ public:
     void resized() override;
 
 private:
-    void setupSlider(juce::Slider& slider, double initialValue);
-    void onSliderValueChange();
-    void drawSeparatorLine(juce::Graphics& g, const juce::Slider& leftSlider, const juce::Slider& rightSlider);
-    
+    static constexpr int sliderSize = 100;
+
+    void setupSlider(LabeledSlider& slider, const juce::ParameterID& id, const juce::String& labelText);
+    void drawSeparatorLine(juce::Graphics& g, const LabeledSlider& leftSlider, const LabeledSlider& rightSlider);
+
     juce::Rectangle<int> titleBounds;
-    
-    juce::Slider* activeSlider = nullptr;
-    
+
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
 
-    juce::Slider roomSizeSlider, dampingSlider, widthSlider, mixSlider, sendGainSlider, highpassFreqSlider;
+    LabeledSlider roomSizeSlider, dampingSlider, widthSlider, mixSlider, sendGainSlider, highpassFreqSlider;
 
     juce::TextButton spectrumBypassButton;
 
-    // Slider attachments to connect UI to parameters
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> roomSizeAttachment, dampingAttachment, widthAttachment, mixAttachment, sendGainAttachment, highpassFreqAttachment;
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> spectrumBypassAttachment;
-    
+
     CustomLookAndFeel customLookAndFeel;
-    
+
     SpectrumAnalyzer spectrumAnalyzer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessorEditor)

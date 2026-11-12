@@ -3,7 +3,8 @@
 #include "shared/EffectSettings.h"
 
 #if PLUGIN_WEBVIEW_EDITOR
- #include "webview/WebViewEditor.h"
+ #include <webview_editor/webview_editor.h>
+ #include "ui/SpectrumScope.h"
 #endif
 
 //==============================================================================
@@ -157,7 +158,29 @@ bool AudioPluginAudioProcessor::hasEditor() const
 juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 {
    #if PLUGIN_WEBVIEW_EDITOR
-    return new WebViewEditor (*this);
+    static_assert (WebViewEditor::updateHz == SpectrumScope::updateHz, "onTick is the spectrum's timer");
+
+    // Sent as thousandths: JSON writes a float with all its digits. The page side is webui/src/plugin/index.tsx
+    auto sendSpectrum = [this, scope = std::make_shared<SpectrumScope>()] (const WebViewEditor::EmitEvent& emit)
+    {
+        if (! scope->update (spectrumTap, getSampleRate(), isSpectrumBypassed()))
+            return;
+
+        juce::Array<juce::var> points;
+        points.ensureStorageAllocated (SpectrumScope::scopeSize);
+
+        for (const auto point : scope->getScope())
+            points.add (juce::roundToInt (point * 1000.0f));
+
+        emit ("spectrum", points);
+    };
+
+    return new WebViewEditor (*this, { .specs = ParameterSpecs::all,
+                                       .parameters = apvts,
+                                       .width = AudioPluginAudioProcessorEditor::width,
+                                       .height = AudioPluginAudioProcessorEditor::height,
+                                       .background = juce::Colour (CustomLookAndFeel::backgroundTop),
+                                       .onTick = sendSpectrum });
    #else
     return new AudioPluginAudioProcessorEditor (*this);
    #endif

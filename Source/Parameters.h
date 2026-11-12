@@ -16,7 +16,4 @@ namespace Parameters
     inline const juce::ParameterID sendGainId       { ParameterSpecs::sendGain.id, versionHint };
     inline const juce::ParameterID highpassFreqId   { ParameterSpecs::highpassFreq.id, versionHint };
     inline const juce::ParameterID spectrumBypassId { ParameterSpecs::spectrumBypass.id, versionHint };
-
-    // Built from ParameterSpecs::all, in its order
-    juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 }

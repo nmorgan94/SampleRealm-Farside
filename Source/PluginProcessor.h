@@ -4,6 +4,7 @@
 #include "Parameters.h"
 #include "dsp/Effect.h"
 #include "dsp/SpectrumTap.h"
+#include <controls/controls.h>
 
 //==============================================================================
 class AudioPluginAudioProcessor final : public juce::AudioProcessor
@@ -53,11 +54,12 @@ public:
 
 private:
     //==============================================================================
-    juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters", Parameters::createLayout() };
-    
+    juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters",
+                                               createParameterLayout (ParameterSpecs::all, Parameters::versionHint) };
+
     Effect effect;
     SpectrumTap spectrumTap;
-    
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

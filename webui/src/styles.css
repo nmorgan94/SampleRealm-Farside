@@ -6,6 +6,13 @@
   --color-pink: #ff6b9d;
   --color-blue: #0f3460;
   --color-fg: #f0f0f0;
+
+  /* For the shared slider's typing box and the demo frame */
+  --color-background: var(--color-top);
+  --color-widget: var(--color-blue);
+  --color-line: var(--color-red);
+  --color-clip: var(--color-red);
+
   --font-display: Orbitron, var(--font-sans);
 }
 

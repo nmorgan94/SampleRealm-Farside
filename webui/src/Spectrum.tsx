@@ -1,6 +1,6 @@
 // Mirrors SpectrumAnalyzer::paint
 import { useEffect, useRef } from 'react';
-import type { PluginBackend, Scope } from './backend.ts';
+import type { ReverbBackend, Scope } from './backend.ts';
 import { SCOPE_SIZE } from './spectrum.ts';
 
 const RED = '#e94560';
@@ -32,7 +32,7 @@ function draw(canvas: HTMLCanvasElement, scope: Scope, width: number, height: nu
   context.fill(path);
 }
 
-export function Spectrum({ backend, width, height }: { backend: PluginBackend; width: number; height: number }) {
+export function Spectrum({ backend, width, height }: { backend: ReverbBackend; width: number; height: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {

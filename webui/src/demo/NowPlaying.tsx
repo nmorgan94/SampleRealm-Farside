@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { juceHeight } from '../fonts.ts';
+import { juceHeight } from '@samplerealm/modules/editor/fonts.ts';
 import type { Player } from './player.ts';
 import type { Source } from './source.ts';
 

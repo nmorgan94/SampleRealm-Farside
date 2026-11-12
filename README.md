@@ -77,6 +77,16 @@ On both, mono or stereo, and the input layout must match the output.
 JUCE is fetched automatically at configure time via CPM into `.cpm-cache/`, shared by every preset and by `wasm/` -
 there is no submodule to initialize. A build folder made before the cache needs its `_deps/juce-*` removed first.
 
+The build helpers, core headers, parameter layout, `LabeledSlider`, WebView editor, demo frame, worklet,
+Vite config and test helpers come from [SampleRealm-Modules](https://github.com/nmorgan94/SampleRealm-Modules).
+One line in `webui/package.json` says which copy the plugin, wasm and web builds all use:
+
+```json
+"@samplerealm/modules": "github:nmorgan94/SampleRealm-Modules#<full commit id>"
+"@samplerealm/modules": "file:../../SampleRealm-Modules"
+```
+
+The first is what's committed, never a branch; the second uses a local folder. Run `npm install` in `webui/` after changing it.
 The web demo also needs Emscripten (`brew install emscripten`) and Node 24+.
 
 ## Commands
@@ -118,11 +128,11 @@ ctest --preset debug                            # test
 Unit tests live in `Tests/` and use [Catch2](https://github.com/catchorg/Catch2). They build into a
 `Reverb_Tests` executable that links the plugin's code and drives the processor directly, checking
 a snapshot of every parameter as hosts see it, bus layouts, state save and restore, that the output
-stays finite across block sizes and parameter settings, and that `Effect` matches the `juce_dsp`
-chain it replaced.
+stays finite across block sizes and parameter settings, that `Effect` matches the `juce_dsp`
+chain it replaced, and that the editor's knobs follow their parameters.
 
-Add a `.cpp` file to `Tests/` and reconfigure to pick it up. `Tests/TestHelpers.h` has helpers for
-setting parameters and processing buffers. Set `-DENABLE_UNIT_TESTS=OFF` to skip them entirely.
+Add a `.cpp` file to `Tests/` and reconfigure to pick it up. SampleRealm-Modules' `PluginTestHelpers.h`,
+included by `Tests/TestHelpers.h`, has helpers for setting parameters and processing buffers. Set `-DENABLE_UNIT_TESTS=OFF` to skip them entirely.
 
 Like pluginval, the tests are not part of a plain build: the `debug` workflow builds only the plugin.
 
@@ -173,11 +183,12 @@ the web UI. The snapshot test in `Tests/ReverbTests.cpp` pins what hosts and sav
   `project()` and `VERSION` in `CMakeLists.txt`. Upload that folder; the site embeds its `index.html` in an iframe.
   [`wasm.yml`](.github/workflows/wasm.yml) builds the same folder on GitHub as an artifact of that name, run by hand:
   **Actions → Web demo → Run workflow**, or `gh workflow run wasm.yml`.
+- The engine's tests are `webui/test/engine.test.ts`, run by the wasm workflow's `ui` test.
 - The demo's input is made by `webui/src/demo/loop.ts`. For a recording, add it to
   `webui/public/demo/` as AAC (`.m4a`) so Safari can decode it, and decode it in `startAudio`.
 - The demo's spectrum comes from a Web Audio `AnalyserNode`, so it is windowed and looks smoother than the plugin's.
 - The `webview` build installs over the native one; run the `release` workflow to switch back.
-- Delete `wasm/patches/juce-wasm.patch` once JUCE fixes its wasm support.
+- The wasm build patches JUCE (`cmake/patches/juce-wasm.patch` in SampleRealm-Modules) until JUCE fixes its wasm support.
 
 ## Debugging in Xcode
 

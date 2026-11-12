@@ -2,7 +2,7 @@
 
 #include <array>
 #include <juce_audio_basics/juce_audio_basics.h>
-#include "../shared/Transport.h"
+#include <samplerealm/Transport.h>
 
 //==============================================================================
 /** Send-style reverb: the send is highpassed (24 dB/oct), gained, reverbed 100% wet and blended with the dry. */

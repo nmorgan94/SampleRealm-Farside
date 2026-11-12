@@ -24,6 +24,34 @@ public:
         setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
         setColour(juce::TextButton::textColourOffId, juce::Colour(primaryRed).withAlpha(0.8f));
         setColour(juce::TextButton::textColourOnId, juce::Colour(offWhite).withAlpha(0.3f));
+
+        // The knobs' names, and the box a value is typed into
+        setColour(juce::Label::textColourId, juce::Colour(primaryRed));
+        setColour(juce::Label::backgroundColourId, juce::Colour(darkBlue).withAlpha(0.5f));
+        setColour(juce::Label::textWhenEditingColourId, juce::Colour(offWhite));
+        setColour(juce::Label::backgroundWhenEditingColourId, juce::Colour(darkBlue));
+        setColour(juce::Label::outlineWhenEditingColourId, juce::Colour(primaryRed));
+        setColour(juce::TextEditor::highlightColourId, juce::Colour(primaryRed).withAlpha(0.4f));
+    }
+
+    // A rounded box behind the text
+    void drawLabel(juce::Graphics& g, juce::Label& label) override
+    {
+        g.setColour(label.findColour(juce::Label::backgroundColourId));
+        g.fillRoundedRectangle(label.getLocalBounds().toFloat(), 5.0f);
+
+        if (label.isBeingEdited())
+            return;
+
+        g.setColour(label.findColour(juce::Label::textColourId));
+        g.setFont(getLabelFont(label));
+        g.drawFittedText(label.getText(), label.getLocalBounds(), label.getJustificationType(), 1, label.getMinimumHorizontalScale());
+    }
+
+    juce::Font getLabelFont(juce::Label& label) override
+    {
+        const auto font = label.getFont();
+        return juce::Font((font.isBold() ? orbitronBold() : orbitronRegular()).withHeight(font.getHeight()));
     }
 
     void drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height,
