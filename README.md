@@ -158,9 +158,8 @@ pulls ~300MB of SDK for one extra test; enable it with `-DPLUGINVAL_VST3_VALIDAT
 ## CI
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) builds the Release plugin on macOS and
-Windows and runs the unit tests. It only runs when started by hand: **Actions → CI → Run workflow**
-on GitHub, or `gh workflow run ci.yml`. Tick **Also run pluginval** (or pass `-f pluginval=true`) to
-validate the plugin too, which takes longer.
+Windows and runs the unit tests and pluginval. It runs on every push to `main`, or by hand:
+**Actions → CI → Run workflow** on GitHub, or `gh workflow run ci.yml`.
 
 Each run's page lists the plugins under **Artifacts** for 30 days: `Reverb-macOS.tar.gz` (VST3 and
 AU) and `Reverb-Windows.tar.gz` (VST3). They are unsigned.
@@ -181,8 +180,8 @@ the web UI. The snapshot test in `Tests/ReverbTests.cpp` pins what hosts and sav
 
 - The demo builds to `wasm/build-wasm/SampleRealm-Reverb-<version>/`, named from `COMPANY_NAME`,
   `project()` and `VERSION` in `CMakeLists.txt`. Upload that folder; the site embeds its `index.html` in an iframe.
-  [`wasm.yml`](.github/workflows/wasm.yml) builds the same folder on GitHub as an artifact of that name, run by hand:
-  **Actions → Web demo → Run workflow**, or `gh workflow run wasm.yml`.
+  [`wasm.yml`](.github/workflows/wasm.yml) builds the same folder on GitHub as an artifact of that name, on every push
+  to `main` or by hand: **Actions → Web demo → Run workflow**, or `gh workflow run wasm.yml`.
 - The engine's tests are `webui/test/engine.test.ts`, run by the wasm workflow's `ui` test.
 - The demo's input is made by `webui/src/demo/loop.ts`. For a recording, add it to
   `webui/public/demo/` as AAC (`.m4a`) so Safari can decode it, and decode it in `startAudio`.
