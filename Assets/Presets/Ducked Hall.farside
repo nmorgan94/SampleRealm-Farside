@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PRESET name="Ducked Hall" category="Vocal" author="SampleRealm" formatVersion="1">
+  <Parameters>
+    <PARAM id="roomSize" value="0.9"/>
+    <PARAM id="damping" value="0.4"/>
+    <PARAM id="width" value="1.0"/>
+    <PARAM id="mix" value="0.35"/>
+    <PARAM id="highpassFreq" value="350.0"/>
+    <PARAM id="drive" value="0.0"/>
+    <PARAM id="delaySync" value="1.0"/>
+    <PARAM id="delayNote" value="4.0"/>
+    <PARAM id="delayTime" value="375.0"/>
+    <PARAM id="delayFeedback" value="0.35"/>
+    <PARAM id="delayLevel" value="0.0"/>
+    <PARAM id="duck" value="0.8"/>
+    <PARAM id="outputGain" value="0.0"/>
+  </Parameters>
+</PRESET>

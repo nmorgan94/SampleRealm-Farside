@@ -1,20 +1,22 @@
-# SampleRealm: Reverb
+# SampleRealm: Farside
 
-A send-style reverb with a filtered send path and a live spectrum display
+A send in one insert: a filtered, driven send into a ping-pong delay and a reverb, ducked by the dry signal, with a live spectrum display
 
 ## Features
 
 ### Signal Chain
 
-The dry signal is never filtered. Only the reverb send is:
+The dry signal is never processed. Only the send is:
 
 ```
-dry ───────────────────────────────────────────┐
-                                               ├─→ out
-in ──→ highpass ──→ send gain ──→ reverb ──────┘
+in ──┬──────────────────────────────── dry ─────────────────┐
+     │                                                      ├─ mix ─→ out
+     └ highpass → drive ─────────────┬───────────┐          │
+                                     └ delay ─┬──┴→ reverb ─┤
+                                              └─────────────┴→ duck (keyed by the dry)
 ```
 
-The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so **Mix** stays predictable no matter how hard the send is driven.
+The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so **Mix** stays predictable no matter how hard the send is driven. With Drive, Delay and Duck at 0, their defaults, it is a plain send reverb.
 
 ### Highpass
 
@@ -23,11 +25,24 @@ The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so
 - Cuts only what reaches the reverb, so the dry low end stays intact - the usual fix for a reverb that turns muddy on bass-heavy material
 - Bypassed automatically at 20 Hz, so parking the knob fully left costs nothing
 
-### Send Gain
+### Drive
 
-- 0 to 2× (up to +6 dB), default 1.0
-- Sets how hard the signal hits the reverb, independent of the wet/dry blend
-- Applied after the highpass, so the filter shapes what gets driven
+- 0 to 1, default 0 (off)
+- A tanh soft clip on the send, after the highpass, which adds harmonics, not level
+- Made up so a send at -12 dB keeps its level: a louder one comes out quieter, a quieter one louder
+
+### Delay
+
+- **LEVEL** is the echoes' level, 0 to 1, default 0 (off). They are heard themselves and also feed the reverb
+- **TIME** is a note value while **SYNC** is lit (1/16, 1/8T, 1/8, 1/8D, 1/4, 1/4D, 1/2, default 1/4, from the host's tempo), and 10 to 2000 ms otherwise (default 375). Synced times stop at 2 seconds
+- **FEEDBACK**, 0 to 0.95, default 0.35. Each repeat is a little darker than the last
+- In stereo the echoes alternate sides, starting on the left. In mono they repeat in place
+- Moving the time glides, as a tape delay does
+
+### Duck
+
+- 0 to 1, default 0 (off): how far the echoes and the reverb drop while the dry signal is at or above -18 dB
+- 10 ms attack and 250 ms release, so the tail comes up as a phrase ends
 
 ### Reverb
 
@@ -48,7 +63,13 @@ The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so
 
 #### Spectrum Bypass
 
-**ANALYSER**, in the top right, toggles a `spectrumBypass` parameter that clears the display and stops the audio thread writing to the FIFO, for hosts where the analyzer isn't worth the CPU. Hosts can't automate it.
+**Analyser**, in the `...` menu, toggles a `spectrumBypass` parameter that clears the display and stops the audio thread writing to the FIFO, for hosts where the analyzer isn't worth the CPU. Hosts can't automate it, and presets don't hold it.
+
+### Header
+
+- The shared header: presets, the `...` menu with the manual and About, and an output meter
+- **GAIN**, beside the meter: -24 to +12 dB, default 0, on the dry and wet signals together. Ramped over a block when it moves
+- Factory presets are the `.farside` files in `Assets/Presets/`, and the manual is `Assets/Manual.md`
 
 
 ## System Requirements
@@ -64,7 +85,7 @@ The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so
 - Windows 10 or later, 64-bit
 - VST3 or Standalone
 
-On both, mono or stereo, and the input layout must match the output.
+On both, mono or stereo out, from the same layout in or from mono: on a mono track with a stereo output the dry is copied to both sides, and the echoes bounce.
 
 ## Build Requirements
 
@@ -77,7 +98,7 @@ On both, mono or stereo, and the input layout must match the output.
 JUCE is fetched automatically at configure time via CPM into `.cpm-cache/`, shared by every preset and by `wasm/` -
 there is no submodule to initialize. A build folder made before the cache needs its `_deps/juce-*` removed first.
 
-The build helpers, core headers, parameter layout, `LabeledSlider`, WebView editor, demo frame, worklet,
+The build helpers, core headers, parameter layout, `LabeledSlider`, header, presets, WebView editor, demo frame, worklet,
 Vite config and test helpers come from [SampleRealm-Modules](https://github.com/nmorgan94/SampleRealm-Modules).
 One line in `webui/package.json` says which copy the plugin, wasm and web builds all use:
 
@@ -105,8 +126,8 @@ workflow configures, builds and, for tests, runs in one go.
 | Launch the Standalone app (Debug) | `cmake --build --preset run` |
 | Install for your DAW: **macOS** | Automatic on every build |
 | Install for your DAW: **Windows** | `cmake --build --preset install-windows`, from an administrator prompt |
-| Open in an IDE for debugging: **macOS** | `cmake --preset xcode`, then open `build-xcode/Reverb.xcodeproj` |
-| Open in an IDE for debugging: **Windows** | Open `build-debug\Reverb.sln` in Visual Studio after a Debug workflow |
+| Open in an IDE for debugging: **macOS** | `cmake --preset xcode`, then open `build-xcode/Farside.xcodeproj` |
+| Open in an IDE for debugging: **Windows** | Open `build-debug\Farside.sln` in Visual Studio after a Debug workflow |
 
 `run` and `install-windows` use the Debug build, so run `cmake --workflow --preset debug` once first.
 Windows installs on demand rather than after every build because its VST3 folder needs
@@ -126,10 +147,10 @@ ctest --preset debug                            # test
 ## Unit Tests
 
 Unit tests live in `Tests/` and use [Catch2](https://github.com/catchorg/Catch2). They build into a
-`Reverb_Tests` executable that links the plugin's code and drives the processor directly, checking
+`Farside_Tests` executable that links the plugin's code and drives the processor directly, checking
 a snapshot of every parameter as hosts see it, bus layouts, state save and restore, that the output
 stays finite across block sizes and parameter settings, that `Effect` matches the `juce_dsp`
-chain it replaced, and that the editor's knobs follow their parameters.
+chain it replaced, that the editor's knobs follow their parameters, and that every factory preset loads.
 
 Add a `.cpp` file to `Tests/` and reconfigure to pick it up. SampleRealm-Modules' `PluginTestHelpers.h`,
 included by `Tests/TestHelpers.h`, has helpers for setting parameters and processing buffers. Set `-DENABLE_UNIT_TESTS=OFF` to skip them entirely.
@@ -161,13 +182,13 @@ pulls ~300MB of SDK for one extra test; enable it with `-DPLUGINVAL_VST3_VALIDAT
 Windows and runs the unit tests and pluginval. It runs on every push to `main`, or by hand:
 **Actions → CI → Run workflow** on GitHub, or `gh workflow run ci.yml`.
 
-Each run's page lists the plugins under **Artifacts** for 30 days: `Reverb-macOS.tar.gz` (VST3 and
-AU) and `Reverb-Windows.tar.gz` (VST3). They are unsigned.
+Each run's page lists the plugins under **Artifacts** for 30 days: `Farside-macOS.tar.gz` (VST3 and
+AU) and `Farside-Windows.tar.gz` (VST3). They are unsigned.
 
 ## Parameters
 
 `Source/shared/ParameterSpecs.h` is the only parameter list, read by the plugin, the wasm engine and
-the web UI. The snapshot test in `Tests/ReverbTests.cpp` pins what hosts and saved sessions see.
+the web UI. The snapshot test in `Tests/FarsideTests.cpp` pins what hosts and saved sessions see.
 
 ## Web Demo and WebView Editor
 
@@ -178,7 +199,7 @@ the web UI. The snapshot test in `Tests/ReverbTests.cpp` pins what hosts and sav
 | Typecheck and test the UI on their own | `cd webui && npm run typecheck && npm test` |
 | Build the plugin with the WebView editor | `cmake --workflow --preset webview` |
 
-- The demo builds to `wasm/build-wasm/SampleRealm-Reverb-<version>/`, named from `COMPANY_NAME`,
+- The demo builds to `wasm/build-wasm/SampleRealm-Farside-<version>/`, named from `COMPANY_NAME`,
   `project()` and `VERSION` in `CMakeLists.txt`. Upload that folder; the site embeds its `index.html` in an iframe.
   [`wasm.yml`](.github/workflows/wasm.yml) builds the same folder on GitHub as an artifact of that name, on every push
   to `main` or by hand: **Actions → Web demo → Run workflow**, or `gh workflow run wasm.yml`.
@@ -195,7 +216,7 @@ the web UI. The snapshot test in `Tests/ReverbTests.cpp` pins what hosts and sav
 
 ```bash
 cmake --preset xcode
-open build-xcode/Reverb.xcodeproj
+open build-xcode/Farside.xcodeproj
 ```
 
 ### 2. Configure Debugging

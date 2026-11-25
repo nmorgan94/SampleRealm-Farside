@@ -1,6 +1,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <samplerealm/BuildCommit.h>
 #include <samplerealm/ParameterValues.h>
+#include <samplerealm/PeakMeter.h>
 #include <samplerealm/UiInfoJson.h>
 #include <samplerealm/WasmExport.h>
 #include "shared/ParameterSpecs.h"
@@ -16,6 +17,7 @@ namespace
     ParameterValues values { ParameterSpecs::all };
 
     Effect effect;
+    PeakMeter meter { maxChannels };
     juce::AudioBuffer<float> buffer { maxChannels, maxBlockSize };
     int numChannels = maxChannels;
     double currentSampleRate = 48000.0;
@@ -28,13 +30,14 @@ WASM_EXPORT (uiInfo) const char* uiInfo()
     return json.c_str();
 }
 
-// As isBusesLayoutSupported: mono or stereo, the same in and out
+// Mono or stereo, the same in and out
 WASM_EXPORT (prepare) void prepare (double sampleRate, int channels)
 {
     numChannels = std::clamp (channels, 1, maxChannels);
     currentSampleRate = sampleRate;
+    meter.setNumChannels (numChannels);
     buffer.clear();
-    effect.prepare (sampleRate, maxBlockSize, numChannels);
+    effect.prepare (sampleRate, maxBlockSize, numChannels, numChannels);
 }
 
 WASM_EXPORT (setParam) void setParam (int index, float value)
@@ -60,5 +63,12 @@ WASM_EXPORT (render) void render (int numSamples)
 
     effect.setSettings (makeEffectSettings (values));
     effect.process (block, transport);
+    meter.process (block);
     transport.advance (block.getNumSamples(), currentSampleRate);
+}
+
+// The loudest output sample since the last call, as linear gain
+WASM_EXPORT (peak) float peak (int index)
+{
+    return index >= 0 && index < numChannels ? meter.readAndReset (index) : 0.0f;
 }

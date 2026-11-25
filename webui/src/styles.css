@@ -7,11 +7,26 @@
   --color-blue: #0f3460;
   --color-fg: #f0f0f0;
 
-  /* For the shared slider's typing box and the demo frame */
+  /* For the shared header, overlays, slider and demo frame, as the native colour IDs in CustomLookAndFeel */
   --color-background: var(--color-top);
   --color-widget: var(--color-blue);
-  --color-line: var(--color-red);
+  --color-line: color-mix(in oklab, var(--color-red) 60%, transparent);
+  --color-thumb: var(--color-red);
   --color-clip: var(--color-red);
+  --color-meter-background: var(--color-top);
+  --color-menu: var(--color-bottom);
+  --color-menu-header: var(--color-red);
+  --color-menu-highlight: color-mix(in oklab, var(--color-red) 30%, transparent);
+  --color-header: rgb(0 0 0 / 35%);
+  --color-title: var(--color-fg);
+  --color-overlay-dim: color-mix(in oklab, var(--color-top) 75%, transparent);
+  --color-overlay-panel: var(--color-bottom);
+  --color-overlay-outline: var(--color-line);
+  --color-input: var(--color-top);
+  --color-input-outline: var(--color-line);
+  --color-input-focus: var(--color-red);
+  --color-input-highlight: color-mix(in oklab, var(--color-red) 40%, transparent);
+  --color-scrollbar: var(--color-red);
 
   --font-display: Orbitron, var(--font-sans);
 }
@@ -26,6 +41,12 @@
   font-family: Orbitron;
   font-weight: 700;
   src: url('../../Assets/Orbitron-Bold.ttf') format('truetype');
+}
+
+/* The LevelMeter colour IDs, where they differ from the other shared components' */
+.meter-colours {
+  --color-line: color-mix(in oklab, var(--color-fg) 40%, transparent);
+  --color-thumb: var(--color-fg);
 }
 
 body {

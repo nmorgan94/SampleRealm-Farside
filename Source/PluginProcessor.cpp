@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "shared/EffectSettings.h"
+#include <BinaryData.h>
 
 #if PLUGIN_WEBVIEW_EDITOR
  #include <webview_editor/webview_editor.h>
@@ -22,6 +23,34 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor()
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor()
 {
+}
+
+PresetManager::Config AudioPluginAudioProcessor::createPresetConfig()
+{
+    PresetManager::Config config;
+    config.fileExtension = ".farside";
+    config.userDirectory = PresetManager::getDefaultUserDirectory (JucePlugin_Manufacturer, JucePlugin_Name);
+    config.author        = JucePlugin_Manufacturer;
+    config.formatVersion = Parameters::versionHint;
+
+    // The analyser's switch
+    config.ignoredParameterIds = PresetManager::performanceControlIds (ParameterSpecs::all);
+
+    // Factory presets are embedded from Assets/Presets alongside the fonts
+    for (int i = 0; i < BinaryData::namedResourceListSize; ++i)
+    {
+        const auto* resource = BinaryData::namedResourceList[i];
+
+        if (! juce::String (BinaryData::getNamedResourceOriginalFilename (resource)).endsWithIgnoreCase (config.fileExtension))
+            continue;
+
+        int size = 0;
+
+        if (const auto* data = BinaryData::getNamedResource (resource, size))
+            config.factoryPresets.emplace_back (data, (size_t) size);
+    }
+
+    return config;
 }
 
 //==============================================================================
@@ -59,13 +88,14 @@ bool AudioPluginAudioProcessor::isMidiEffect() const
 
 double AudioPluginAudioProcessor::getTailLengthSeconds() const
 {
-    return 0.0;
+    // Long enough for most settings: high feedback or a full room rings for longer
+    return 10.0;
 }
 
 int AudioPluginAudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
+                // so this should be at least 1. Presets are managed in the plugin UI instead.
 }
 
 int AudioPluginAudioProcessor::getCurrentProgram()
@@ -92,8 +122,13 @@ void AudioPluginAudioProcessor::changeProgramName (int index, const juce::String
 //==============================================================================
 void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    effect.prepare (sampleRate, samplesPerBlock, getTotalNumOutputChannels());
+    effect.prepare (sampleRate, samplesPerBlock, getTotalNumInputChannels(), getTotalNumOutputChannels());
     spectrumTap.reset();
+}
+
+void AudioPluginAudioProcessor::numChannelsChanged()
+{
+    outputMeter.setNumChannels (getTotalNumOutputChannels());
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -115,9 +150,10 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
      && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
         return false;
 
-    // This checks if the input layout matches the output layout
+    // The input matches the output, or is mono into stereo
    #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
+    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet()
+     && layouts.getMainInputChannelSet() != juce::AudioChannelSet::mono())
         return false;
    #endif
 
@@ -131,12 +167,6 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     juce::ignoreUnused (midiMessages);
 
     juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-
-    // Clear any extra output channels
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
 
     effect.setSettings (makeEffectSettings ([this] (const ParameterSpecs::Spec& spec) -> float
     {
@@ -147,6 +177,8 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     if (! isSpectrumBypassed())
         spectrumTap.push (buffer);
+
+    outputMeter.process (buffer);
 }
 
 //==============================================================================
@@ -177,6 +209,8 @@ juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 
     return new WebViewEditor (*this, { .specs = ParameterSpecs::all,
                                        .parameters = apvts,
+                                       .presets = &presetManager,
+                                       .meter = &outputMeter,
                                        .width = AudioPluginAudioProcessorEditor::width,
                                        .height = AudioPluginAudioProcessorEditor::height,
                                        .background = juce::Colour (CustomLookAndFeel::backgroundTop),
@@ -190,17 +224,18 @@ juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 void AudioPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
-    std::unique_ptr<juce::XmlElement> xml (state.createXml());
-    copyXmlToBinary (*xml, destData);
+    presetManager.addPresetInfoTo (state);
+
+    if (const auto xml = state.createXml())
+        copyXmlToBinary (*xml, destData);
 }
 
 void AudioPluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
-    
-    if (xmlState.get() != nullptr)
-        if (xmlState->hasTagName (apvts.state.getType()))
-            apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
+    const auto xml = getXmlFromBinary (data, sizeInBytes);
+
+    if (xml != nullptr && xml->hasTagName (apvts.state.getType()))
+        presetManager.restoreState (juce::ValueTree::fromXml (*xml));
 }
 
 //==============================================================================

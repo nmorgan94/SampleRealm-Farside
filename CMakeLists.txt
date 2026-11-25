@@ -4,7 +4,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "" FORCE)
 set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "" FORCE)
 
 # Change to your project name
-project(Reverb)
+project(Farside)
 
 # Enables `ctest`
 enable_testing()
@@ -61,7 +61,7 @@ juce_add_plugin(${PROJECT_NAME}
         PLUGIN_MANUFACTURER_CODE
           Sprm
         PLUGIN_CODE
-          Rvrb
+          Frsd
         VERSION 
           0.0.1
         FORMATS
@@ -150,9 +150,9 @@ if(WIN32)
         COMMENT "Installing VST3 into ${vst3CopyDir}")
 endif()
 
-# No header, presets or activation, so not add_plugin_editor
-include(${SampleRealm-Modules_SOURCE_DIR}/cmake/Controls.cmake)
-add_plugin_controls(${PROJECT_NAME})
+# No activation, so not add_plugin_activation
+include(${SampleRealm-Modules_SOURCE_DIR}/cmake/Editor.cmake)
+add_plugin_editor(${PROJECT_NAME})
 
 include(${SampleRealm-Modules_SOURCE_DIR}/cmake/Pluginval.cmake)
 add_pluginval_tests(${PROJECT_NAME})

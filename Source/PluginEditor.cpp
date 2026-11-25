@@ -12,48 +12,114 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     setupSlider(dampingSlider, Parameters::dampingId, "DAMPING");
     setupSlider(widthSlider, Parameters::widthId, "WIDTH");
     setupSlider(mixSlider, Parameters::mixId, "MIX");
-    setupSlider(sendGainSlider, Parameters::sendGainId, "SEND GAIN");
     setupSlider(highpassFreqSlider, Parameters::highpassFreqId, "HP FREQ");
     highpassFreqSlider.getSlider().setTextValueSuffix(" Hz");
+    setupSlider(driveSlider, Parameters::driveId, "DRIVE");
+    setupSlider(delayNoteSlider, Parameters::delayNoteId, "TIME");
+    setupSlider(delayTimeSlider, Parameters::delayTimeId, "TIME");
+    delayTimeSlider.getSlider().setTextValueSuffix(" ms");
+    setupSlider(delayFeedbackSlider, Parameters::delayFeedbackId, "FEEDBACK");
+    setupSlider(delayLevelSlider, Parameters::delayLevelId, "LEVEL");
+    setupSlider(duckSlider, Parameters::duckId, "DUCK");
+
+    attachSlider(output.gain, Parameters::outputGainId, "GAIN");
+    output.gain.setNameHeight(gainNameHeight);
+    output.gain.setLabelHeight(gainLabelHeight);
+    output.gain.getSlider().setTextValueSuffix(" dB");
+
+    setupTextToggle(delaySyncButton, "SYNC");
+    delaySyncButton.onStateChange = [this] { showDelayTimeKnob(); };
+
+    delaySyncAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processorRef.getAPVTS(), Parameters::delaySyncId.getParamID(), delaySyncButton);
+    showDelayTimeKnob();
 
     addAndMakeVisible(spectrumAnalyzer);
 
-    // Lit while the analyzer runs, dimmed once it is bypassed
-    addAndMakeVisible(spectrumBypassButton);
-    spectrumBypassButton.setButtonText("ANALYSER");
-    spectrumBypassButton.setClickingTogglesState(true);
+    addAndMakeVisible(header);
+    header.setTitle("SampleRealm: FARSIDE");
+    header.setOwnMenuItems([this](juce::PopupMenu& menu)
+    {
+        const auto bypassed = processorRef.isSpectrumBypassed();
 
-    spectrumBypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processorRef.getAPVTS(), Parameters::spectrumBypassId.getParamID(), spectrumBypassButton);
+        menu.addItem("Analyser", true, ! bypassed, [this, bypassed]
+        {
+            auto* bypass = processorRef.getAPVTS().getParameter(Parameters::spectrumBypassId.getParamID());
+            bypass->beginChangeGesture();
+            bypass->setValueNotifyingHost(bypassed ? 0.0f : 1.0f);
+            bypass->endChangeGesture();
+        });
+    });
+    addChildComponent(prompt);
+    addChildComponent(manual);
 
     setSize(width, height);
 }
 
+void AudioPluginAudioProcessorEditor::setupTextToggle(juce::TextButton& button, const juce::String& text)
+{
+    button.setButtonText(text);
+    button.setClickingTogglesState(true);
+    button.setColour(juce::TextButton::textColourOnId, juce::Colour(CustomLookAndFeel::primaryRed).withAlpha(0.8f));
+    button.setColour(juce::TextButton::textColourOffId, juce::Colour(CustomLookAndFeel::offWhite).withAlpha(0.3f));
+
+    // Text only, so the toggle reads as a label
+    button.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    button.setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
+    button.setColour(juce::ComboBox::outlineColourId, juce::Colours::transparentBlack);
+
+    addAndMakeVisible(button);
+}
+
 void AudioPluginAudioProcessorEditor::setupSlider(LabeledSlider& slider, const juce::ParameterID& id, const juce::String& labelText)
+{
+    attachSlider(slider, id, labelText);
+    slider.setNameHeight(nameHeight);
+    slider.setLabelHeight(labelHeight);
+    addAndMakeVisible(slider);
+}
+
+void AudioPluginAudioProcessorEditor::attachSlider(LabeledSlider& slider, const juce::ParameterID& id, const juce::String& labelText)
 {
     // The id lets tests find the knob
     slider.setComponentID(id.getParamID());
     slider.setLabelText(labelText);
-    addAndMakeVisible(slider);
 
     sliderAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         processorRef.getAPVTS(), id.getParamID(), slider.getSlider()));
 }
 
-void AudioPluginAudioProcessorEditor::drawSeparatorLine(juce::Graphics& g,
-                                                        const LabeledSlider& leftSlider,
-                                                        const LabeledSlider& rightSlider)
+void AudioPluginAudioProcessorEditor::showDelayTimeKnob()
 {
-    g.setColour(juce::Colour(0xffe94560)); // Red color
+    const auto synced = delaySyncButton.getToggleState();
+    delayNoteSlider.setVisible(synced);
+    delayTimeSlider.setVisible(! synced);
+}
 
-    auto leftBounds = leftSlider.getBounds();
-    auto rightBounds = rightSlider.getBounds();
+void AudioPluginAudioProcessorEditor::drawStage(juce::Graphics& g, const juce::String& name,
+                                                const LabeledSlider& firstSlider, bool hasNextStage)
+{
+    // A small name in a column beside the knobs
+    auto column = juce::Rectangle<int>(firstSlider.getX() - stageGap - stageWidth, firstSlider.getY(), stageWidth, knobSize).toFloat();
 
-    // Calculate line position (centered between sliders)
-    float lineX = (leftBounds.getRight() + rightBounds.getX()) / 2.0f;
-    float lineY1 = leftBounds.getY();
-    float lineY2 = leftBounds.getY() + sliderSize;
+    g.setFont(CustomLookAndFeel::orbitronBold().withPointHeight(8.0f));
+    g.setColour(juce::Colour(CustomLookAndFeel::offWhite).withAlpha(0.8f));
+    g.drawText(name, column.withY(column.getY() + stageNameTop).withHeight(stageNameHeight), juce::Justification::centred);
 
-    g.drawLine(lineX, lineY1, lineX, lineY2, 1.0f);
+    if (! hasNextStage)
+        return;
+
+    // Down to the next stage's name
+    auto x = column.getCentreX();
+    auto top = column.getY() + stageArrowTop;
+    auto tip = column.getY() + rowPitch + stageNameTop - 4;
+
+    g.setColour(juce::Colour(CustomLookAndFeel::primaryRed).withAlpha(0.6f));
+    auto base = tip - arrowHead;
+    g.drawLine(x, top, x, base, 1.0f);
+
+    juce::Path head;
+    head.addTriangle(x - 4.0f, base, x + 4.0f, base, x, tip);
+    g.fillPath(head);
 }
 
 AudioPluginAudioProcessorEditor::~AudioPluginAudioProcessorEditor()
@@ -73,51 +139,53 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& g)
     g.setGradientFill(gradient);
     g.fillAll();
 
-    g.setColour(juce::Colour(0xfff0f0f0));
+    const auto offWhite = juce::Colour(CustomLookAndFeel::offWhite);
     juce::AttributedString titleText;
     titleText.setJustification(juce::Justification::centred);
-    titleText.append("SampleRealm: ", CustomLookAndFeel::orbitronBold().withPointHeight(28.0f), juce::Colour(0xfff0f0f0));
-    titleText.append("REVERB", CustomLookAndFeel::orbitronRegular().withPointHeight(28.0f), juce::Colour(0xfff0f0f0));
-    titleText.draw(g, titleBounds.toFloat());
-    
-    // Draw version number small in bottom right of title area
-    g.setFont(CustomLookAndFeel::orbitronRegular().withPointHeight(9.0f));
-    g.setColour(juce::Colour(0xffe94560).withAlpha(0.8f));
-    auto versionArea = juce::Rectangle<int>(titleBounds.getRight() - 50, titleBounds.getBottom() - 12, 50, 12);
-    g.drawText("v" + juce::String(JucePlugin_VersionString), versionArea, juce::Justification::centredRight);
+    titleText.append("SampleRealm: ", CustomLookAndFeel::orbitronBold().withPointHeight(28.0f), offWhite);
+    titleText.append("FARSIDE", CustomLookAndFeel::orbitronRegular().withPointHeight(28.0f), offWhite);
+    titleText.draw(g, spectrumAnalyzer.getBounds().toFloat());
 
-    drawSeparatorLine(g, sendGainSlider, roomSizeSlider);  // Pre-reverb | Reverb
-    drawSeparatorLine(g, widthSlider, mixSlider);          // Reverb | Mix
+    // Top down, in the order the signal goes through them
+    drawStage(g, "SEND", highpassFreqSlider, true);
+    drawStage(g, "DELAY", delayNoteSlider, true);
+    drawStage(g, "REVERB", roomSizeSlider, true);
+    drawStage(g, "OUTPUT", duckSlider, false);
 }
 
 void AudioPluginAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds();
     
-    auto analyzerArea = juce::Rectangle<int>(0, 0, bounds.getWidth(), 100);
+    header.setBounds(bounds.removeFromTop(headerLayout.height));
+
+    auto analyzerArea = bounds.removeFromTop(spectrumHeight);
     spectrumAnalyzer.setBounds(analyzerArea);
-    
-    titleBounds = juce::Rectangle<int>(0, 0, bounds.getWidth(), 100);
 
-    // Tucked into the top right corner, above the version number
-    spectrumBypassButton.setBounds(titleBounds.getRight() - 66, 6, 58, 20);
+    int sliderHeight = knobSize + labelHeight;
 
-    // What the row is centred by, taller than a knob with its label
-    int rowHeight = sliderSize + 30;
-    auto sliderArea = juce::Rectangle<int>(0, 100, bounds.getWidth(), bounds.getHeight() - 100);
-    
-    // Layout sliders in a row within slider area
-    int spacing = 15;
-    int totalWidth = (sliderSize * 6) + (spacing * 5);
-    int startX = (sliderArea.getWidth() - totalWidth) / 2;
-    int startY = (sliderArea.getHeight() - rowHeight) / 2;
-    
-    int sliderHeight = sliderSize + LabeledSlider::labelHeight;
+    // A row per stage: its name in a column on the left, then its sliders, the pair centred
+    int rowWidth = stageWidth + stageGap + sliderWidth * knobsPerRow + knobSpacing * (knobsPerRow - 1);
+    int slidersX = (bounds.getWidth() - rowWidth) / 2 + stageWidth + stageGap;
 
-    highpassFreqSlider.setBounds(startX, 100 + startY, sliderSize, sliderHeight);
-    sendGainSlider.setBounds(startX + (sliderSize + spacing), 100 + startY, sliderSize, sliderHeight);
-    roomSizeSlider.setBounds(startX + (sliderSize + spacing) * 2, 100 + startY, sliderSize, sliderHeight);
-    dampingSlider.setBounds(startX + (sliderSize + spacing) * 3, 100 + startY, sliderSize, sliderHeight);
-    widthSlider.setBounds(startX + (sliderSize + spacing) * 4, 100 + startY, sliderSize, sliderHeight);
-    mixSlider.setBounds(startX + (sliderSize + spacing) * 5, 100 + startY, sliderSize, sliderHeight);
+    auto layOutRow = [&](int row, std::initializer_list<LabeledSlider*> sliders)
+    {
+        int x = slidersX;
+
+        for (auto* slider : sliders)
+        {
+            slider->setBounds(x, rowsTop + rowPitch * row, sliderWidth, sliderHeight);
+            x += sliderWidth + knobSpacing;
+        }
+    };
+
+    layOutRow(0, { &highpassFreqSlider, &driveSlider });
+    layOutRow(1, { &delayNoteSlider, &delayFeedbackSlider, &delayLevelSlider });
+    layOutRow(2, { &roomSizeSlider, &dampingSlider, &widthSlider });
+    layOutRow(3, { &duckSlider, &mixSlider });
+
+    delayTimeSlider.setBounds(delayNoteSlider.getBounds());
+
+    // Under the knob it switches
+    delaySyncButton.setBounds(delayNoteSlider.getBounds().getCentreX() - syncWidth / 2, delayNoteSlider.getBottom() + 1, syncWidth, syncHeight);
 }

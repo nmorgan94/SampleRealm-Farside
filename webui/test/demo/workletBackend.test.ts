@@ -7,7 +7,7 @@ import { SCOPE_SIZE, UPDATE_HZ } from '../../src/spectrum.ts';
 import { workletBackend, type Analyser } from '../../src/demo/workletBackend.ts';
 import { info } from '../engine.ts';
 
-const backendForTest = () => workletBackend(info, memoryStorage());
+const backendForTest = () => workletBackend(info, { storage: memoryStorage() });
 
 // Every bin at 0 dB, so the scope reads 1 everywhere
 const fakeAnalyser = () => {

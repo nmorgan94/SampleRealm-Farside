@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client';
-import { editorBackend, onEvent } from '@samplerealm/modules/plugin/pluginBackend.ts';
-import type { ReverbBackend, Scope } from '../backend.ts';
+import { onEvent, pluginBackend } from '@samplerealm/modules/plugin/pluginBackend.ts';
+import type { FarsideBackend, Scope } from '../backend.ts';
 import { Editor } from '../Editor.tsx';
 import './styles.css';
 
@@ -10,12 +10,12 @@ const SPECTRUM_SCALE = 1000;
 const onSpectrum = (listener: (scope: Scope) => void) =>
   onEvent<number[]>('spectrum', (points) => listener(Float32Array.from(points, (point) => point / SPECTRUM_SCALE)));
 
-const reverbBackend = (): ReverbBackend => ({ ...editorBackend(), onSpectrum });
+const farsideBackend = (): FarsideBackend => ({ ...pluginBackend(), onSpectrum });
 
 const root = createRoot(document.getElementById('root')!);
 
 try {
-  root.render(<Editor backend={reverbBackend()} />);
+  root.render(<Editor backend={farsideBackend()} />);
 } catch (error) {
   console.error(error);
   root.render(<pre className="p-5 text-fg">{`The editor couldn't connect to the plugin.\n${error}`}</pre>);

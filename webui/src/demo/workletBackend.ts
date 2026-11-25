@@ -1,21 +1,21 @@
 // The shared demo backend, with the spectrum read from an AnalyserNode
 import type { PresetStorage } from '@samplerealm/modules/demo/localPresets.ts';
 import { workletBackend as sharedBackend, type WorkletBackend as SharedBackend } from '@samplerealm/modules/demo/workletBackend.ts';
-import type { ReverbBackend, Scope, UiInfo } from '../backend.ts';
+import type { FarsideBackend, Scope, UiInfo } from '../backend.ts';
 import { magnitudesFromDecibels, SCOPE_SIZE, scopeFromMagnitudes, UPDATE_HZ } from '../spectrum.ts';
 
 // The AnalyserNode after the worklet, so tests can stand in for it
 export type Analyser = Pick<AnalyserNode, 'frequencyBinCount' | 'getFloatFrequencyData'> & { context: Pick<BaseAudioContext, 'state' | 'sampleRate'> };
 
-export type WorkletBackend = SharedBackend & ReverbBackend & { attachAnalyser(analyser: Analyser): void };
+export type WorkletBackend = SharedBackend & FarsideBackend & { attachAnalyser(analyser: Analyser): void };
 
-// This plugin's, as a site's demos share its storage. The editor shows no presets
-const STORAGE_KEY = 'samplerealm-reverb-presets';
+// This plugin's, as a site's demos share its storage
+const STORAGE_KEY = 'samplerealm-farside-presets';
 
 const SPECTRUM_BYPASS = 'spectrumBypass';
 
-export function workletBackend(info: UiInfo, storage?: PresetStorage): WorkletBackend {
-  const backend = sharedBackend(info, { storageKey: STORAGE_KEY, storage });
+export function workletBackend(info: UiInfo, { factoryPresets, storage }: { factoryPresets?: string[]; storage?: PresetStorage } = {}): WorkletBackend {
+  const backend = sharedBackend(info, { storageKey: STORAGE_KEY, factoryPresets, storage });
   const spectrumListeners = new Set<(scope: Scope) => void>();
   let analyser: { node: Analyser; decibels: Float32Array<ArrayBuffer> } | null = null;
   let timer: ReturnType<typeof setInterval> | undefined;

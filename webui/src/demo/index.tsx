@@ -5,6 +5,7 @@ import { loadEngine } from '@samplerealm/modules/demo/engine.ts';
 import { juceHeight } from '@samplerealm/modules/editor/fonts.ts';
 import { EDITOR_HEIGHT, EDITOR_WIDTH, Editor } from '../Editor.tsx';
 import { startAudio, type Audio } from './audio.ts';
+import { factoryPresets } from './factoryPresets.ts';
 import { useFileDrop } from './fileDrop.ts';
 import { NowPlaying } from './NowPlaying.tsx';
 import { usePlayer } from './player.ts';
@@ -29,7 +30,7 @@ function Demo() {
 
   useEffect(() => {
     loadEngine(ENGINE_URL)
-      .then(({ wasm, info }) => setEngine({ backend: workletBackend(info), wasm }))
+      .then(({ wasm, info }) => setEngine({ backend: workletBackend(info, { factoryPresets }), wasm }))
       .catch((error) => {
         console.error('Demo failed to load:', error);
         setFailed(true);
@@ -65,7 +66,7 @@ function Demo() {
       overlay={
         dragging && audio && (
           <div className="absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-red bg-top/80">
-            <p className="text-sm font-bold">Drop to play through the reverb</p>
+            <p className="text-sm font-bold">Drop to play through Farside</p>
           </div>
         )
       }

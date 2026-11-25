@@ -28,8 +28,15 @@ TEST_CASE_METHOD (ProcessorFixture, "Parameters match the snapshot hosts rely on
         { "damping",        1, "Damping",         "",  0.0f,     1.0f, 0.01f, 1.0f,    0.8f, { "0.00", "0.50", "1.00" },  true,  false },
         { "width",          1, "Width",           "",  0.0f,     1.0f, 0.01f, 1.0f,    0.5f, { "0.00", "0.50", "1.00" },  true,  false },
         { "mix",            1, "Mix",             "",  0.0f,     1.0f, 0.01f, 1.0f,    0.5f, { "0.00", "0.50", "1.00" },  true,  false },
-        { "sendGain",       1, "Send Gain",       "",  0.0f,     2.0f, 0.01f, 1.0f,    1.0f, { "0.00", "1.00", "2.00" },  true,  false },
         { "highpassFreq",   1, "Highpass Freq",   "", 20.0f, 20000.0f,  1.0f, 0.2f, 1000.0f, { "20", "644", "20000" },    true,  false },
+        { "drive",          1, "Drive",           "",  0.0f,     1.0f, 0.01f, 1.0f,    0.0f, { "0.00", "0.50", "1.00" },  true,  false },
+        { "delaySync",      1, "Delay Sync",      "",  0.0f,     1.0f,  1.0f, 1.0f,    1.0f, { "Off", "On", "On" },       true,  true  },
+        { "delayNote",      1, "Delay Note",      "",  0.0f,     6.0f,  1.0f, 1.0f,    4.0f, { "1/16", "1/8D", "1/2" },   true,  false },
+        { "delayTime",      1, "Delay Time",      "", 10.0f,  2000.0f,  1.0f, 0.5f,  375.0f, { "10", "508", "2000" },     true,  false },
+        { "delayFeedback",  1, "Delay Feedback",  "",  0.0f,    0.95f, 0.01f, 1.0f,   0.35f, { "0.00", "0.48", "0.95" },  true,  false },
+        { "delayLevel",     1, "Delay Level",     "",  0.0f,     1.0f, 0.01f, 1.0f,    0.0f, { "0.00", "0.50", "1.00" },  true,  false },
+        { "duck",           1, "Duck",            "",  0.0f,     1.0f, 0.01f, 1.0f,    0.0f, { "0.00", "0.50", "1.00" },  true,  false },
+        { "outputGain",     1, "Output Gain",     "", -24.0f,   12.0f,  0.1f, 1.0f,    0.0f, { "-24.0", "-6.0", "12.0" }, true,  false },
         { "spectrumBypass", 1, "Spectrum Bypass", "",  0.0f,     1.0f,  1.0f, 1.0f,    0.0f, { "Off", "On", "On" },       false, true  },
     };
 
@@ -74,30 +81,34 @@ TEST_CASE_METHOD (ProcessorFixture, "Output stays finite for any block size, inp
 
     CAPTURE (numSamples, amplitude);
 
+    // The drive, the delay at its longest feedback and the duck: all off, then all the way up
+    const auto extras = GENERATE (0.0f, 1.0f);
+    setParameter (processor, Parameters::driveId, extras);
+    setParameter (processor, Parameters::delayLevelId, extras);
+    setParameter (processor, Parameters::delayFeedbackId, extras * ParameterSpecs::delayFeedback.max);
+    setParameter (processor, Parameters::duckId, extras);
+    CAPTURE (extras);
+
     // Sweeps the send path across its range between blocks, as host automation would
-    for (const auto sendGain : { 0.0f, 1.0f, 2.0f })
+    for (const auto highpassFreq : { 20.0f, 1000.0f, 20000.0f })
     {
-        for (const auto highpassFreq : { 20.0f, 1000.0f, 20000.0f })
+        for (const auto mix : { 0.0f, 0.5f, 1.0f })
         {
-            for (const auto mix : { 0.0f, 0.5f, 1.0f })
-            {
-                CAPTURE (sendGain, highpassFreq, mix);
+            CAPTURE (highpassFreq, mix);
 
-                setParameter (processor, Parameters::sendGainId, sendGain);
-                setParameter (processor, Parameters::highpassFreqId, highpassFreq);
-                setParameter (processor, Parameters::mixId, mix);
+            setParameter (processor, Parameters::highpassFreqId, highpassFreq);
+            setParameter (processor, Parameters::mixId, mix);
 
-                auto buffer = makeSineBuffer (2, numSamples, 440.0f, amplitude);
-                process (processor, buffer);
+            auto buffer = makeSineBuffer (2, numSamples, 440.0f, amplitude);
+            process (processor, buffer);
 
-                CHECK (allSamplesFinite (buffer));
-            }
+            CHECK (allSamplesFinite (buffer));
         }
     }
 }
 
 //==============================================================================
-TEST_CASE_METHOD (ProcessorFixture, "Only matching mono or stereo layouts are supported", "[buses]")
+TEST_CASE_METHOD (ProcessorFixture, "Mono or stereo out is supported, from as many channels or from mono", "[buses]")
 {
     using Set = juce::AudioChannelSet;
 
@@ -105,9 +116,31 @@ TEST_CASE_METHOD (ProcessorFixture, "Only matching mono or stereo layouts are su
     CHECK (processor.isBusesLayoutSupported ({ { Set::mono() },   { Set::mono() } }));
     CHECK (processor.isBusesLayoutSupported ({ { Set::stereo() }, { Set::stereo() } }));
 
-    CHECK_FALSE (processor.isBusesLayoutSupported ({ { Set::mono() },   { Set::stereo() } }));
+    CHECK (processor.isBusesLayoutSupported ({ { Set::mono() },   { Set::stereo() } }));
+
     CHECK_FALSE (processor.isBusesLayoutSupported ({ { Set::stereo() }, { Set::mono() } }));
     CHECK_FALSE (processor.isBusesLayoutSupported ({ { Set::create5point1() }, { Set::create5point1() } }));
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "A mono track into stereo gets its input on both sides", "[buses]")
+{
+    using Set = juce::AudioChannelSet;
+
+    AudioPluginAudioProcessor monoIntoStereo;
+    REQUIRE (monoIntoStereo.setBusesLayout ({ { Set::mono() }, { Set::stereo() } }));
+    monoIntoStereo.setRateAndBufferSizeDetails (sampleRate, blockSize);
+    monoIntoStereo.prepareToPlay (sampleRate, blockSize);
+    setParameter (monoIntoStereo, Parameters::mixId, 0.0f);
+
+    // Hosts leave whatever was there in the second channel
+    auto buffer = makeSineBuffer (2, blockSize, 440.0f, 0.5f);
+    const auto input = buffer;
+    juce::FloatVectorOperations::fill (buffer.getWritePointer (1), 123.0f, blockSize);
+    process (monoIntoStereo, buffer);
+
+    for (int channel = 0; channel < 2; ++channel)
+        for (int i = 0; i < blockSize; ++i)
+            REQUIRE (juce::exactlyEqual (buffer.getSample (channel, i), input.getSample (0, i)));
 }
 
 //==============================================================================

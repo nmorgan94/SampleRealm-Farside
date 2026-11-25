@@ -1,10 +1,11 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <samplerealm/PeakMeter.h>
 #include "Parameters.h"
 #include "dsp/Effect.h"
 #include "dsp/SpectrumTap.h"
-#include <controls/controls.h>
+#include <editor/editor.h>
 
 //==============================================================================
 class AudioPluginAudioProcessor final : public juce::AudioProcessor
@@ -19,6 +20,7 @@ public:
     void releaseResources() override;
 
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
+    void numChannelsChanged() override;
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using AudioProcessor::processBlock;
@@ -49,6 +51,11 @@ public:
     //==============================================================================
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
     
+    PeakMeter& getOutputMeter() { return outputMeter; }
+    PresetManager& getPresetManager() { return presetManager; }
+
+    static PresetManager::Config createPresetConfig();
+
     SpectrumTap& getSpectrumTap() { return spectrumTap; }
     bool isSpectrumBypassed() const { return apvts.getRawParameterValue (ParameterSpecs::spectrumBypass.id)->load() >= 0.5f; }
 
@@ -56,9 +63,11 @@ private:
     //==============================================================================
     juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters",
                                                createParameterLayout (ParameterSpecs::all, Parameters::versionHint) };
+    PresetManager presetManager { apvts, createPresetConfig() };
 
     Effect effect;
     SpectrumTap spectrumTap;
+    PeakMeter outputMeter { getTotalNumOutputChannels() };
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)

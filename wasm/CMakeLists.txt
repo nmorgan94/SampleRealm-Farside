@@ -20,4 +20,5 @@ include(${SampleRealm-Modules_SOURCE_DIR}/cmake/WasmDemo.cmake)
 add_wasm_demo(
     SOURCES
         Engine.cpp
-        ../Source/dsp/Effect.cpp)
+        ../Source/dsp/Effect.cpp
+        ../Source/dsp/PingPongDelay.cpp)
