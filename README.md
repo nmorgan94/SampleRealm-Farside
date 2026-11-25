@@ -21,7 +21,7 @@ The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so
 ### Highpass
 
 - 24 dB/oct, two cascaded 12 dB/oct IIR stages
-- 20 Hz to 20 kHz, default 1 kHz, skewed for finer control at the low end
+- 20 Hz to 20 kHz, default 250 Hz, skewed for finer control at the low end
 - Cuts only what reaches the reverb, so the dry low end stays intact - the usual fix for a reverb that turns muddy on bass-heavy material
 - Bypassed automatically at 20 Hz, so parking the knob fully left costs nothing
 

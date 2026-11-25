@@ -12,7 +12,7 @@ namespace ParameterSpecs
     inline constexpr Spec damping       { "damping",       "Damping",        Kind::real,  0.0f,     1.0f,    0.8f, 0.01f };
     inline constexpr Spec width         { "width",         "Width",          Kind::real,  0.0f,     1.0f,    0.5f, 0.01f };
     inline constexpr Spec mix           { "mix",           "Mix",            Kind::real,  0.0f,     1.0f,    0.5f, 0.01f };
-    inline constexpr Spec highpassFreq  { "highpassFreq",  "Highpass Freq",  Kind::real, 20.0f, 20000.0f, 1000.0f, 1.0f, 0.2f };
+    inline constexpr Spec highpassFreq  { "highpassFreq",  "Highpass Freq",  Kind::real, 20.0f, 20000.0f, 250.0f, 1.0f, 0.2f };
     inline constexpr Spec drive         { "drive",         "Drive",          Kind::real,  0.0f,     1.0f,    0.0f, 0.01f };
     inline constexpr Spec delaySync     = toggle ("delaySync", "Delay Sync", true);
     inline constexpr Spec delayNote     = choice ("delayNote", "Delay Note", delayNotes, 4);

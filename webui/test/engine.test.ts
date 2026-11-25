@@ -20,7 +20,7 @@ test('the ui info carries the version, the commit, the build type and every para
     real('damping', 'Damping', 0, 1, 0.8, 0.01),
     real('width', 'Width', 0, 1, 0.5, 0.01),
     real('mix', 'Mix', 0, 1, 0.5, 0.01),
-    real('highpassFreq', 'Highpass Freq', 20, 20000, 1000, 1, 0.2),
+    real('highpassFreq', 'Highpass Freq', 20, 20000, 250, 1, 0.2),
     real('drive', 'Drive', 0, 1, 0, 0.01),
     { id: 'delaySync', name: 'Delay Sync', kind: 'toggle', min: 0, max: 1, defaultValue: 1, step: 1, skew: 1, unit: '', choices: [] },
     { id: 'delayNote', name: 'Delay Note', kind: 'choice', min: 0, max: 6, defaultValue: 4, step: 1, skew: 1, unit: '', choices: ['1/16', '1/8T', '1/8', '1/8D', '1/4', '1/4D', '1/2'] },
