@@ -6,6 +6,7 @@
 #include "Drive.h"
 #include "Ducker.h"
 #include "PingPongDelay.h"
+#include "SpectrumTap.h"
 
 //==============================================================================
 /** A send in one insert: the send is highpassed (24 dB/oct), driven and echoed into a 100% wet reverb.
@@ -40,6 +41,9 @@ public:
     void reset();
     void setSettings (const Settings& newSettings);
 
+    /** Where the dry and wet signals go for the display, as they are in the output. Null for nowhere. */
+    void setTap (SpectrumTap* newTap)   { tap = newTap; }
+
     /** As many channels as the output, of any length. A mono input into stereo is in the first. */
     void process (juce::AudioBuffer<float>& buffer, const Transport& transport);
 
@@ -68,4 +72,6 @@ private:
     bool ramping = false;
 
     juce::AudioBuffer<float> wet, echoes;
+
+    SpectrumTap* tap = nullptr;
 };

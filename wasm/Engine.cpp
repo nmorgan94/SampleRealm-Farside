@@ -7,6 +7,7 @@
 #include "shared/ParameterSpecs.h"
 #include "shared/EffectSettings.h"
 #include "dsp/Effect.h"
+#include "dsp/SpectrumFrameSource.h"
 
 //==============================================================================
 namespace
@@ -22,6 +23,11 @@ namespace
     int numChannels = maxChannels;
     double currentSampleRate = 48000.0;
     Transport transport;
+
+    SpectrumTap spectrumTap;
+    SpectrumFrameSource spectrum;
+
+    bool spectrumBypassed()   { return values (ParameterSpecs::spectrumBypass) >= 0.5f; }
 }
 
 WASM_EXPORT (uiInfo) const char* uiInfo()
@@ -38,6 +44,7 @@ WASM_EXPORT (prepare) void prepare (double sampleRate, int channels)
     meter.setNumChannels (numChannels);
     buffer.clear();
     effect.prepare (sampleRate, maxBlockSize, numChannels, numChannels);
+    spectrumTap.reset();
 }
 
 WASM_EXPORT (setParam) void setParam (int index, float value)
@@ -62,6 +69,7 @@ WASM_EXPORT (render) void render (int numSamples)
     juce::AudioBuffer<float> block { buffer.getArrayOfWritePointers(), numChannels, std::clamp (numSamples, 0, maxBlockSize) };
 
     effect.setSettings (makeEffectSettings (values));
+    effect.setTap (spectrumBypassed() ? nullptr : &spectrumTap);
     effect.process (block, transport);
     meter.process (block);
     transport.advance (block.getNumSamples(), currentSampleRate);
@@ -71,4 +79,16 @@ WASM_EXPORT (render) void render (int numSamples)
 WASM_EXPORT (peak) float peak (int index)
 {
     return index >= 0 && index < numChannels ? meter.readAndReset (index) : 0.0f;
+}
+
+// The display now as SpectrumFrame::size floats, given how long it's been since the last call
+WASM_EXPORT (frame) const float* frame (double seconds)
+{
+    spectrum.update (spectrumTap, seconds, currentSampleRate, spectrumBypassed());
+    return spectrum.getFrame().data();
+}
+
+WASM_EXPORT (frameSize) int frameSize()
+{
+    return SpectrumFrame::size;
 }

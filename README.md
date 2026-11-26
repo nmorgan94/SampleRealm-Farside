@@ -57,9 +57,10 @@ The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so
 
 ### Spectrum Analyzer
 
-- 2048-point FFT, 512 display points, redrawn at 30 Hz
-- Logarithmic frequency mapping across 20 Hz to 20 kHz
-- Normalized per frame against its own peak, so it shows balance across the spectrum rather than absolute level
+- The wet signal over the dry one, each as it is in the output: 96 bands from 20 Hz to 20 kHz, in dB, redrawn at 30 Hz
+- The shared `SpectrumAnalyser`: a full-scale 1 kHz sine reads 0 dB, tilted up 4.5 dB an octave; levels rise at once and fall 24 dB a second
+- A line marks the highpass's cutoff, and a bar on the right shows how far the duck is holding the wet signal down
+- The plugin, the WebView and the demo draw the same frame (`Source/shared/SpectrumFrame.h`), the demo's from the wasm engine
 
 #### Spectrum Bypass
 
@@ -206,7 +207,6 @@ the web UI. The snapshot test in `Tests/FarsideTests.cpp` pins what hosts and sa
 - The engine's tests are `webui/test/engine.test.ts`, run by the wasm workflow's `ui` test.
 - The demo's input is made by `webui/src/demo/loop.ts`. For a recording, add it to
   `webui/public/demo/` as AAC (`.m4a`) so Safari can decode it, and decode it in `startAudio`.
-- The demo's spectrum comes from a Web Audio `AnalyserNode`, so it is windowed and looks smoother than the plugin's.
 - The `webview` build installs over the native one; run the `release` workflow to switch back.
 - **Windows**: the `webview` build needs Microsoft's WebView2 package, installed once per machine from Windows PowerShell:
   ```powershell

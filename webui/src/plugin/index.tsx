@@ -1,14 +1,12 @@
 import { createRoot } from 'react-dom/client';
 import { onEvent, pluginBackend } from '@samplerealm/modules/plugin/pluginBackend.ts';
-import type { FarsideBackend, Scope } from '../backend.ts';
+import type { FarsideBackend } from '../backend.ts';
 import { Editor } from '../Editor.tsx';
+import { decodeFrame, type SpectrumFrame } from '../spectrumFrame.ts';
 import './styles.css';
 
-// As createEditor sends it in Source/PluginProcessor.cpp: the scope in thousandths
-const SPECTRUM_SCALE = 1000;
-
-const onSpectrum = (listener: (scope: Scope) => void) =>
-  onEvent<number[]>('spectrum', (points) => listener(Float32Array.from(points, (point) => point / SPECTRUM_SCALE)));
+// As createEditor sends it in Source/PluginProcessor.cpp
+const onSpectrum = (listener: (frame: SpectrumFrame) => void) => onEvent<string>('spectrum', (frame) => listener(decodeFrame(frame)));
 
 const farsideBackend = (): FarsideBackend => ({ ...pluginBackend(), onSpectrum });
 

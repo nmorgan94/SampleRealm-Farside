@@ -5,7 +5,8 @@
 
 #if PLUGIN_WEBVIEW_EDITOR
  #include <webview_editor/webview_editor.h>
- #include "ui/SpectrumScope.h"
+ #include "dsp/SpectrumFrameSource.h"
+ #include "ui/FrameClock.h"
 #endif
 
 //==============================================================================
@@ -173,10 +174,8 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         return *apvts.getRawParameterValue (spec.id);
     }));
 
+    effect.setTap (isSpectrumBypassed() ? nullptr : &spectrumTap);
     effect.process (buffer, Transport::from (getPlayHead()));
-
-    if (! isSpectrumBypassed())
-        spectrumTap.push (buffer);
 
     outputMeter.process (buffer);
 }
@@ -190,21 +189,16 @@ bool AudioPluginAudioProcessor::hasEditor() const
 juce::AudioProcessorEditor* AudioPluginAudioProcessor::createEditor()
 {
    #if PLUGIN_WEBVIEW_EDITOR
-    static_assert (WebViewEditor::updateHz == SpectrumScope::updateHz, "onTick is the spectrum's timer");
+    static_assert (WebViewEditor::updateHz == SpectrumFrame::updateHz, "onTick is the spectrum's timer");
 
-    // Sent as thousandths: JSON writes a float with all its digits. The page side is webui/src/plugin/index.tsx
-    auto sendSpectrum = [this, scope = std::make_shared<SpectrumScope>()] (const WebViewEditor::EmitEvent& emit)
+    // As its bytes in base64. The page side is webui/src/plugin/index.tsx
+    auto sendSpectrum = [this, source = std::make_shared<SpectrumFrameSource>(), clock = FrameClock()] (const WebViewEditor::EmitEvent& emit) mutable
     {
-        if (! scope->update (spectrumTap, getSampleRate(), isSpectrumBypassed()))
+        if (! source->update (spectrumTap, clock.seconds(), getSampleRate(), isSpectrumBypassed()))
             return;
 
-        juce::Array<juce::var> points;
-        points.ensureStorageAllocated (SpectrumScope::scopeSize);
-
-        for (const auto point : scope->getScope())
-            points.add (juce::roundToInt (point * 1000.0f));
-
-        emit ("spectrum", points);
+        const auto& frame = source->getFrame();
+        emit ("spectrum", juce::Base64::toBase64 (frame.data(), frame.size() * sizeof (float)));
     };
 
     return new WebViewEditor (*this, { .specs = ParameterSpecs::all,

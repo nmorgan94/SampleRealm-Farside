@@ -1,30 +1,34 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
-#include "SpectrumScope.h"
+#include "../dsp/SpectrumFrameSource.h"
+#include "FrameClock.h"
 
-// Forward declaration to avoid circular dependency
 class AudioPluginAudioProcessor;
 
 //==============================================================================
+/** The wet signal's spectrum over the dry one's, with the highpass's cutoff and how far the duck is holding the wet down. */
 class SpectrumAnalyzer : public juce::Component, private juce::Timer
 {
 public:
-    explicit SpectrumAnalyzer(AudioPluginAudioProcessor& proc);
-    
-    void paint(juce::Graphics& g) override;
-    
-private:
-    // Timer callback runs on UI thread at 30Hz
-    void timerCallback() override;
-    
-    // Draw frequency markers on the display
-    void drawFrequencyMarkers(juce::Graphics& g, float width, float height, bool shouldDraw);
-    
-    // Reference to processor for accessing FIFO
-    AudioPluginAudioProcessor& processor;
-    
-    SpectrumScope scope;
+    explicit SpectrumAnalyzer (AudioPluginAudioProcessor& proc);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SpectrumAnalyzer)
+    void paint (juce::Graphics& g) override;
+
+private:
+    static constexpr float duckBarWidth = 3.0f;
+
+    void timerCallback() override;
+
+    juce::Path curve (int offset) const;
+
+    AudioPluginAudioProcessor& processor;
+
+    const std::atomic<float>& highpassFreq;
+
+    SpectrumFrameSource source;
+    FrameClock clock;
+    float shownHighpassFreq = 0.0f;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpectrumAnalyzer)
 };

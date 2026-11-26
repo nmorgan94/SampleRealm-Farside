@@ -27,7 +27,7 @@ A whole send in one insert. A copy of the input is filtered, driven and echoed i
 
 ## Display
 
-- The spectrum shows the output. Analyser in the ... menu switches it off and on.
+- The spectrum shows the reverb and echoes in red over the input in grey, as loud as each is in the output. The line is the highpass, and the bar on the right drops as DUCK holds the reverb down. Analyser in the ... menu switches it off and on.
 - GAIN, beside the meter, turns the whole output up or down, in dB.
 - The meter in the corner shows the output peak, and its light turns on when the output goes over 0 dB.
 - Click a knob's name to type a value.

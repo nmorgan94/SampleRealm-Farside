@@ -1,9 +1,11 @@
 #pragma once
 
+#include <atomic>
 #include <juce_audio_basics/juce_audio_basics.h>
 
 //==============================================================================
-/** Hands the output, mixed to mono, from the audio thread to the spectrum display without locking. */
+/** Hands the dry and the wet signals, each mixed to mono, and the duck's gain from the audio thread
+    to the spectrum display without locking. With no reader it fills up, and the rest is dropped. */
 class SpectrumTap
 {
 public:
@@ -14,49 +16,54 @@ public:
     void reset() noexcept
     {
         fifo.reset();
+        duckGain = 1.0f;
     }
 
-    void push (const juce::AudioBuffer<float>& buffer) noexcept
+    /** The next samples of each, in as many channels as the dry signal has, and the lowest gain the duck gave the wet signal over them. */
+    void push (const juce::AudioBuffer<float>& dry, const juce::AudioBuffer<float>& wet, int numSamples, float lowestDuckGain) noexcept
     {
-        const auto numChannels = buffer.getNumChannels();
-        int start1, size1, start2, size2;
-        fifo.prepareToWrite (buffer.getNumSamples(), start1, size1, start2, size2);
+        const auto scope = fifo.write (numSamples);
+        const auto numChannels = dry.getNumChannels();
+        const auto gain = 1.0f / static_cast<float> (numChannels);
 
-        const auto writeRegion = [&] (int fifoStart, int regionSize, int bufferOffset)
+        const auto mix = [&] (int destination, const juce::AudioBuffer<float>& source, int fifoStart, int sourceStart, int length)
         {
-            for (int i = 0; i < regionSize; ++i)
-            {
-                float sample = 0.0f;
+            if (length == 0)
+                return;
 
-                for (int channel = 0; channel < numChannels; ++channel)
-                    sample += buffer.getSample (channel, bufferOffset + i);
+            samples.copyFrom (destination, fifoStart, source.getReadPointer (0, sourceStart), length, gain);
 
-                samples.setSample (0, fifoStart + i, sample / static_cast<float> (numChannels));
-            }
+            for (int channel = 1; channel < numChannels; ++channel)
+                samples.addFrom (destination, fifoStart, source, channel, sourceStart, length, gain);
         };
 
-        writeRegion (start1, size1, 0);
-        writeRegion (start2, size2, size1);
+        for (const auto [destination, source] : { std::pair { 0, &dry }, std::pair { 1, &wet } })
+        {
+            mix (destination, *source, scope.startIndex1, 0, scope.blockSize1);
+            mix (destination, *source, scope.startIndex2, scope.blockSize1, scope.blockSize2);
+        }
 
-        fifo.finishedWrite (size1 + size2);
+        auto current = duckGain.load();
+        while (lowestDuckGain < current && ! duckGain.compare_exchange_weak (current, lowestDuckGain)) {}
     }
 
-    /** Calls consume (const float*, int) with everything pushed since the last pull, in order. */
+    /** Calls consume (const float* dry, const float* wet, int) with everything pushed since the last pull, in order. */
     template <typename Consume>
     void pull (Consume&& consume)
     {
-        int start1, size1, start2, size2;
-        fifo.prepareToRead (fifo.getNumReady(), start1, size1, start2, size2);
+        const auto scope = fifo.read (fifo.getNumReady());
 
-        if (size1 > 0) consume (samples.getReadPointer (0, start1), size1);
-        if (size2 > 0) consume (samples.getReadPointer (0, start2), size2);
-
-        fifo.finishedRead (size1 + size2);
+        if (scope.blockSize1 > 0) consume (samples.getReadPointer (0, scope.startIndex1), samples.getReadPointer (1, scope.startIndex1), scope.blockSize1);
+        if (scope.blockSize2 > 0) consume (samples.getReadPointer (0, scope.startIndex2), samples.getReadPointer (1, scope.startIndex2), scope.blockSize2);
     }
+
+    /** The lowest duck gain pushed since the last call. */
+    float readDuckGain() noexcept   { return duckGain.exchange (1.0f); }
 
 private:
     juce::AbstractFifo fifo { capacity };
-    juce::AudioBuffer<float> samples { 1, capacity };
+    juce::AudioBuffer<float> samples { 2, capacity };
+    std::atomic<float> duckGain { 1.0f };
 
     JUCE_DECLARE_NON_COPYABLE (SpectrumTap)
 };

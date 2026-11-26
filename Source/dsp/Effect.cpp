@@ -138,6 +138,8 @@ void Effect::processChunk (juce::AudioBuffer<float>& buffer)
     addEchoes();
     lastDelayLevel = settings.delayLevel;
 
+    auto lowestDuckGain = 1.0f;
+
     for (int i = 0; i < numSamples; ++i)
     {
         auto dryPeak = 0.0f;
@@ -148,16 +150,27 @@ void Effect::processChunk (juce::AudioBuffer<float>& buffer)
         const auto gain = ducker.gainFor (dryPeak, settings.duck);
 
         if (settings.duck > 0.0f)
+        {
+            lowestDuckGain = std::min (lowestDuckGain, gain);
+
             for (int channel = 0; channel < numChannels; ++channel)
                 wet.getWritePointer (channel)[i] *= gain;
+        }
     }
+
+    const auto dryGain = 1.0f - settings.mix;
 
     for (int channel = 0; channel < numChannels; ++channel)
     {
-        buffer.applyGain (channel, 0, numSamples, 1.0f - settings.mix);
-        buffer.addFrom (channel, 0, wet, channel, 0, numSamples, settings.mix);
-        buffer.applyGainRamp (channel, 0, numSamples, lastOutputGain, outputGain);
+        buffer.applyGainRamp (channel, 0, numSamples, dryGain * lastOutputGain, dryGain * outputGain);
+        wet.applyGainRamp (channel, 0, numSamples, settings.mix * lastOutputGain, settings.mix * outputGain);
     }
+
+    if (tap != nullptr)
+        tap->push (buffer, wet, numSamples, lowestDuckGain);
+
+    for (int channel = 0; channel < numChannels; ++channel)
+        buffer.addFrom (channel, 0, wet, channel, 0, numSamples);
 
     lastOutputGain = outputGain;
 }

@@ -1,82 +1,45 @@
 // The spectrum this plugin adds to the shared demo backend
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { EnginePort } from '@samplerealm/modules/demo/workletBackend.ts';
 import { memoryStorage } from '@samplerealm/modules/testing/presets.ts';
-import type { Scope } from '../../src/backend.ts';
-import { SCOPE_SIZE, UPDATE_HZ } from '../../src/spectrum.ts';
-import { workletBackend, type Analyser } from '../../src/demo/workletBackend.ts';
+import { silentFrame, type SpectrumFrame } from '../../src/spectrumFrame.ts';
+import { workletBackend } from '../../src/demo/workletBackend.ts';
 import { info } from '../engine.ts';
 
-const backendForTest = () => workletBackend(info, { storage: memoryStorage() });
+test("the engine's frames go to whoever listens for the spectrum, until they stop", () => {
+  const backend = workletBackend(info, { storage: memoryStorage() });
+  const port: EnginePort = { postMessage: () => {}, onmessage: null };
+  backend.attach(port);
 
-// Every bin at 0 dB, so the scope reads 1 everywhere
-const fakeAnalyser = () => {
-  const analyser: Analyser & { reads: number; context: { state: AudioContextState; sampleRate: number } } = {
-    reads: 0,
-    context: { state: 'running', sampleRate: 48000 },
-    frequencyBinCount: 1024,
-    getFloatFrequencyData: (array: Float32Array) => {
-      analyser.reads++;
-      array.fill(0);
-    },
-  };
-  return analyser;
-};
+  const frames: SpectrumFrame[] = [];
+  const stop = backend.onSpectrum((frame) => frames.push(frame));
 
-test('the spectrum is read from the analyser 30 times a second while someone listens, and cleared once while bypassed', (t) => {
-  t.mock.timers.enable({ apis: ['setInterval'] });
-  const backend = backendForTest();
-  const analyser = fakeAnalyser();
-  backend.attachAnalyser(analyser);
-
-  const scopes: Scope[] = [];
-  const stop = backend.onSpectrum((scope) => scopes.push(scope));
-
-  // A hair over a second, as 30 intervals of 1000 / 30 ms add up to more than 1000
-  t.mock.timers.tick(1001);
-  assert.equal(scopes.length, UPDATE_HZ);
-  assert.equal(scopes[0]!.length, SCOPE_SIZE);
-  assert.ok(Array.from(scopes[0]!).every((point) => Math.abs(point - 1) < 1e-6));
-
-  backend.setValue('spectrumBypass', 1);
-  const readsBefore = analyser.reads;
-  t.mock.timers.tick(1000 / UPDATE_HZ);
-  assert.ok(Array.from(scopes.at(-1)!).every((point) => point === 0));
-  assert.equal(analyser.reads, readsBefore);
-
-  const cleared = scopes.length;
-  t.mock.timers.tick(1000);
-  assert.equal(scopes.length, cleared);
+  const frame = silentFrame();
+  port.onmessage?.({ data: { type: 'frame', frame } } as MessageEvent);
+  port.onmessage?.({ data: { type: 'level', peaks: [0, 0] } } as MessageEvent);
+  assert.deepEqual(frames, [frame]);
 
   stop();
-  const heard = scopes.length;
-  t.mock.timers.tick(1000);
-  assert.equal(scopes.length, heard);
+  port.onmessage?.({ data: { type: 'frame', frame: frame.map((db) => db + 1) } } as MessageEvent);
+  assert.equal(frames.length, 1);
 });
 
-test('nothing is read or sent while the context is suspended', (t) => {
-  t.mock.timers.enable({ apis: ['setInterval'] });
-  const backend = backendForTest();
-  const analyser = fakeAnalyser();
-  analyser.context.state = 'suspended';
-  backend.attachAnalyser(analyser);
+test('a frame the same as the last one is not sent on', () => {
+  const backend = workletBackend(info, { storage: memoryStorage() });
+  const port: EnginePort = { postMessage: () => {}, onmessage: null };
+  backend.attach(port);
 
-  const scopes: Scope[] = [];
-  backend.onSpectrum((scope) => scopes.push(scope));
-  t.mock.timers.tick(1000);
-  assert.equal(analyser.reads, 0);
-  assert.equal(scopes.length, 0);
+  let frames = 0;
+  backend.onSpectrum(() => frames++);
+  const post = (frame: SpectrumFrame) => port.onmessage?.({ data: { type: 'frame', frame } } as MessageEvent);
 
-  analyser.context.state = 'running';
-  t.mock.timers.tick(1000 / UPDATE_HZ);
-  assert.equal(scopes.length, 1);
-});
+  post(silentFrame());
+  post(silentFrame());
+  assert.equal(frames, 1);
 
-test('nothing is read before the analyser attaches', (t) => {
-  t.mock.timers.enable({ apis: ['setInterval'] });
-  const backend = backendForTest();
-  const scopes: Scope[] = [];
-  backend.onSpectrum((scope) => scopes.push(scope));
-  t.mock.timers.tick(1000);
-  assert.equal(scopes.length, 0);
+  const louder = silentFrame();
+  louder[5] = -20;
+  post(louder);
+  assert.equal(frames, 2);
 });
