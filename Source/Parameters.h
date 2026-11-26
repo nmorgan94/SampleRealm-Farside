@@ -14,6 +14,7 @@ namespace Parameters
     inline const juce::ParameterID widthId          { ParameterSpecs::width.id, versionHint };
     inline const juce::ParameterID mixId            { ParameterSpecs::mix.id, versionHint };
     inline const juce::ParameterID highpassFreqId   { ParameterSpecs::highpassFreq.id, versionHint };
+    inline const juce::ParameterID lowpassFreqId    { ParameterSpecs::lowpassFreq.id, versionHint };
     inline const juce::ParameterID driveId          { ParameterSpecs::drive.id, versionHint };
     inline const juce::ParameterID delaySyncId      { ParameterSpecs::delaySync.id, versionHint };
     inline const juce::ParameterID delayNoteId      { ParameterSpecs::delayNote.id, versionHint };

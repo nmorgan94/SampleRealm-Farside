@@ -18,8 +18,11 @@ const pluginText: [id: string, proportion: number, text: string][] = [
   ['mix', 0.5, '0.50'],
   ['mix', 1, '1.00'],
   ['highpassFreq', 0, '20'],
-  ['highpassFreq', 0.5, '644'],
-  ['highpassFreq', 1, '20000'],
+  ['highpassFreq', 0.5, '900'],
+  ['highpassFreq', 1, '5000'],
+  ['lowpassFreq', 0, '500'],
+  ['lowpassFreq', 0.5, '3947'],
+  ['lowpassFreq', 1, '20000'],
   ['drive', 0, '0.00'],
   ['drive', 0.5, '0.50'],
   ['drive', 1, '1.00'],
@@ -62,9 +65,9 @@ test('every value reads as the plugin shows it, at the same knob position', () =
 test('the skewed highpass maps knob positions to values and back', () => {
   const highpass = param('highpassFreq');
 
-  assert.equal(fromProportion(highpass, 0.25), 40);
-  assert.equal(fromProportion(highpass, 0.75), 4761);
-  assert.ok(Math.abs(toProportion(highpass, 1000) - 0.5472) < 0.001);
+  assert.equal(fromProportion(highpass, 0.25), 176);
+  assert.equal(fromProportion(highpass, 0.75), 2446);
+  assert.ok(Math.abs(toProportion(highpass, 1000) - 0.5219) < 0.001);
 });
 
 test('values snap to the step', () => {

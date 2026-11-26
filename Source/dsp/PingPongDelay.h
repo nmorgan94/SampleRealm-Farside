@@ -9,13 +9,18 @@
 class PingPongDelay
 {
 public:
-    static constexpr double minSeconds = 0.01, maxSeconds = 2.0;
+    static constexpr double minSeconds = 0.01, maxSeconds = 4.0;
 
     void prepare (double sampleRate, int numChannels);
     void reset();
 
+    /** Starts the next buffer at the time and feedback that are set. */
+    void snap();
+
     /** Kept within minSeconds and maxSeconds. A change glides, as a tape delay's does. */
     void setTime (double seconds);
+
+    /** A change is spread over a few milliseconds. */
     void setFeedback (float newFeedback);
 
     /** Replaces the buffer with its echoes alone. */
@@ -28,9 +33,7 @@ private:
     juce::AudioBuffer<float> lines;
     int writeIndex = 0;
 
-    juce::SmoothedValue<float> delayInSamples;
-    bool timeIsSet = false;
-    float feedback = 0.0f;
+    juce::SmoothedValue<float> delayInSamples, feedback;
 
     // One-pole lowpass on what each line feeds on
     float dampingCoefficient = 1.0f;

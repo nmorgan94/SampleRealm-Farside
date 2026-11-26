@@ -11,7 +11,7 @@ The dry signal is never processed. Only the send is:
 ```
 in ──┬──────────────────────────────── dry ─────────────────┐
      │                                                      ├─ mix ─→ out
-     └ highpass → drive ─────────────┬───────────┐          │
+     └ highpass → lowpass → drive ───┬───────────┐          │
                                      └ delay ─┬──┴→ reverb ─┤
                                               └─────────────┴→ duck (keyed by the dry)
 ```
@@ -21,27 +21,36 @@ The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so
 ### Highpass
 
 - 24 dB/oct, two cascaded 12 dB/oct IIR stages
-- 20 Hz to 20 kHz, default 250 Hz, skewed for finer control at the low end
+- 20 Hz to 5 kHz, default 250 Hz, skewed for finer control at the low end
 - Cuts only what reaches the reverb, so the dry low end stays intact - the usual fix for a reverb that turns muddy on bass-heavy material
 - Bypassed automatically at 20 Hz, so parking the knob fully left costs nothing
+- Moving it glides
+
+### Lowpass
+
+- 12 dB/oct, after the highpass
+- 500 Hz to 20 kHz, default 20 kHz (off), skewed for finer control at the low end. It can sit under the highpass, which leaves the send near silent
+- Takes the top off what reaches the reverb and the echoes, for a darker space behind a bright source
+- Bypassed automatically at 20 kHz, and moving it glides
 
 ### Drive
 
 - 0 to 1, default 0 (off)
-- A tanh soft clip on the send, after the highpass, which adds harmonics, not level
+- A tanh soft clip on the send, after the filters, which adds harmonics, not level
 - Made up so a send at -12 dB keeps its level: a louder one comes out quieter, a quieter one louder
 
 ### Delay
 
 - **LEVEL** is the echoes' level, 0 to 1, default 0 (off). They are heard themselves and also feed the reverb
-- **TIME** is a note value while **SYNC** is lit (1/16, 1/8T, 1/8, 1/8D, 1/4, 1/4D, 1/2, default 1/4, from the host's tempo), and 10 to 2000 ms otherwise (default 375). Synced times stop at 2 seconds
+- **TIME** is a note value while **SYNC** is lit (1/16, 1/8T, 1/8, 1/8D, 1/4, 1/4D, 1/2, default 1/4, from the host's tempo), and 10 to 2000 ms otherwise (default 375). Synced times stop at 4 seconds, a 1/2 at 30 BPM
 - **FEEDBACK**, 0 to 0.95, default 0.35. Each repeat is a little darker than the last
 - In stereo the echoes alternate sides, starting on the left. In mono they repeat in place
 - Moving the time glides, as a tape delay does
 
 ### Duck
 
-- 0 to 1, default 0 (off): how far the echoes and the reverb drop while the dry signal is at or above -18 dB
+- 0 to 1, default 0 (off): how far the echoes and the reverb drop while the dry signal is playing
+- It listens for the dry signal against its own peak over the last couple of seconds, and is at full depth within 12 dB of it, so a quiet track ducks as a loud one does. Under -60 dB nothing ducks
 - 10 ms attack and 250 ms release, so the tail comes up as a phrase ends
 
 ### Reverb
@@ -52,14 +61,14 @@ The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so
 
 ### Mix
 
-- Dry/wet blend, 0 to 1, default 0.50
-- Linear crossfade: the dry signal falls as the wet rises
+- 0 to 1, default 0.50
+- As a send up to half way: the dry signal stays at unity while the wet one comes up to it. Past half way the dry signal fades out, so 1 is the wet signal alone
 
 ### Spectrum Analyzer
 
-- The wet signal over the dry one, each as it is in the output: 96 bands from 20 Hz to 20 kHz, in dB, redrawn at 30 Hz
+- The wet signal, a red line, over the dry one, a grey shape, each as it is in the output: 96 bands from 20 Hz to 20 kHz, in dB, redrawn at 30 Hz
 - The shared `SpectrumAnalyser`: a full-scale 1 kHz sine reads 0 dB, tilted up 4.5 dB an octave; levels rise at once and fall 24 dB a second
-- A line marks the highpass's cutoff, and a bar on the right shows how far the duck is holding the wet signal down
+- A curve along the top shows what the highpass and lowpass let through, flat where a filter is off, and a bar on the right shows how far the duck is holding the wet signal down
 - The plugin, the WebView and the demo draw the same frame (`Source/shared/SpectrumFrame.h`), the demo's from the wasm engine
 
 #### Spectrum Bypass

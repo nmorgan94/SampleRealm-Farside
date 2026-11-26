@@ -12,7 +12,7 @@ void PingPongDelay::prepare (double newSampleRate, int numChannels)
     dampingCoefficient = static_cast<float> (1.0 - std::exp (-juce::MathConstants<double>::twoPi * dampingFrequency / sampleRate));
 
     delayInSamples.reset (sampleRate, 0.05);
-    timeIsSet = false;
+    feedback.reset (sampleRate, 0.02);
     reset();
 }
 
@@ -21,24 +21,23 @@ void PingPongDelay::reset()
     lines.clear();
     writeIndex = 0;
     damped.fill (0.0f);
+    snap();
+}
+
+void PingPongDelay::snap()
+{
     delayInSamples.setCurrentAndTargetValue (delayInSamples.getTargetValue());
+    feedback.setCurrentAndTargetValue (feedback.getTargetValue());
 }
 
 void PingPongDelay::setTime (double seconds)
 {
-    const auto samples = static_cast<float> (std::clamp (seconds, minSeconds, maxSeconds) * sampleRate);
-
-    if (timeIsSet)
-        delayInSamples.setTargetValue (samples);
-    else
-        delayInSamples.setCurrentAndTargetValue (samples);
-
-    timeIsSet = true;
+    delayInSamples.setTargetValue (static_cast<float> (std::clamp (seconds, minSeconds, maxSeconds) * sampleRate));
 }
 
 void PingPongDelay::setFeedback (float newFeedback)
 {
-    feedback = newFeedback;
+    feedback.setTargetValue (newFeedback);
 }
 
 void PingPongDelay::process (juce::AudioBuffer<float>& buffer)
@@ -55,6 +54,7 @@ void PingPongDelay::process (juce::AudioBuffer<float>& buffer)
     for (int i = 0; i < numSamples; ++i)
     {
         const auto delay = delayInSamples.getNextValue();
+        const auto feedbackNow = feedback.getNextValue();
         const auto whole = static_cast<int> (delay);
         const auto fraction = delay - static_cast<float> (whole);
 
@@ -76,8 +76,8 @@ void PingPongDelay::process (juce::AudioBuffer<float>& buffer)
             damped[0] += dampingCoefficient * (rightEcho - damped[0]);
             damped[1] += dampingCoefficient * (leftEcho - damped[1]);
 
-            leftLine[writeIndex] = 0.5f * (left[i] + right[i]) + feedback * damped[0];
-            rightLine[writeIndex] = feedback * damped[1];
+            leftLine[writeIndex] = 0.5f * (left[i] + right[i]) + feedbackNow * damped[0];
+            rightLine[writeIndex] = feedbackNow * damped[1];
 
             left[i] = leftEcho;
             right[i] = rightEcho;
@@ -85,7 +85,7 @@ void PingPongDelay::process (juce::AudioBuffer<float>& buffer)
         else
         {
             damped[0] += dampingCoefficient * (leftEcho - damped[0]);
-            leftLine[writeIndex] = left[i] + feedback * damped[0];
+            leftLine[writeIndex] = left[i] + feedbackNow * damped[0];
             left[i] = leftEcho;
         }
 

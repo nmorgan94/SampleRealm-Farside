@@ -4,6 +4,7 @@
 #include "../dsp/Effect.h"
 
 static_assert (ParameterSpecs::delayNotes.size() == Effect::delayNoteBeats.size());
+static_assert (juce::exactlyEqual (ParameterSpecs::highpassFreq.min, Effect::highpassOffFreq) && juce::exactlyEqual (ParameterSpecs::lowpassFreq.max, Effect::lowpassOffFreq));
 
 //==============================================================================
 template <typename ValueOf>
@@ -17,6 +18,7 @@ Effect::Settings makeEffectSettings (ValueOf&& valueOf)
     settings.width = valueOf (width);
     settings.mix = valueOf (mix);
     settings.highpassFreq = valueOf (highpassFreq);
+    settings.lowpassFreq = valueOf (lowpassFreq);
     settings.drive = valueOf (drive);
     settings.delaySync = valueOf (delaySync) >= 0.5f;
     settings.delayNote = juce::roundToInt (valueOf (delayNote));

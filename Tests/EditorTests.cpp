@@ -22,7 +22,7 @@ TEST_CASE_METHOD (ProcessorFixture, "Each knob and its parameter follow each oth
 
     CHECK (editor.getWidth() == AudioPluginAudioProcessorEditor::width);
     CHECK (editor.getHeight() == AudioPluginAudioProcessorEditor::height);
-    CHECK (descendantsOf<LabeledSlider> (editor).size() == 12);
+    CHECK (descendantsOf<LabeledSlider> (editor).size() == 13);
 
     for (const auto* id : { &Parameters::roomSizeId, &Parameters::dampingId, &Parameters::widthId,
                             &Parameters::mixId, &Parameters::driveId,

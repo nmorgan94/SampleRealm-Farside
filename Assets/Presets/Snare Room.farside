@@ -4,8 +4,9 @@
     <PARAM id="roomSize" value="0.35"/>
     <PARAM id="damping" value="0.7"/>
     <PARAM id="width" value="0.7"/>
-    <PARAM id="mix" value="0.2"/>
+    <PARAM id="mix" value="0.12"/>
     <PARAM id="highpassFreq" value="200.0"/>
+    <PARAM id="lowpassFreq" value="7000.0"/>
     <PARAM id="drive" value="0.0"/>
     <PARAM id="delaySync" value="1.0"/>
     <PARAM id="delayNote" value="4.0"/>

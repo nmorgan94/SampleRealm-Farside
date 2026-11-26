@@ -14,6 +14,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     setupSlider(mixSlider, Parameters::mixId, "MIX");
     setupSlider(highpassFreqSlider, Parameters::highpassFreqId, "HP FREQ");
     highpassFreqSlider.getSlider().setTextValueSuffix(" Hz");
+    setupSlider(lowpassFreqSlider, Parameters::lowpassFreqId, "LP FREQ");
+    lowpassFreqSlider.getSlider().setTextValueSuffix(" Hz");
     setupSlider(driveSlider, Parameters::driveId, "DRIVE");
     setupSlider(delayNoteSlider, Parameters::delayNoteId, "TIME");
     setupSlider(delayTimeSlider, Parameters::delayTimeId, "TIME");
@@ -179,7 +181,7 @@ void AudioPluginAudioProcessorEditor::resized()
         }
     };
 
-    layOutRow(0, { &highpassFreqSlider, &driveSlider });
+    layOutRow(0, { &highpassFreqSlider, &lowpassFreqSlider, &driveSlider });
     layOutRow(1, { &delayNoteSlider, &delayFeedbackSlider, &delayLevelSlider });
     layOutRow(2, { &roomSizeSlider, &dampingSlider, &widthSlider });
     layOutRow(3, { &duckSlider, &mixSlider });

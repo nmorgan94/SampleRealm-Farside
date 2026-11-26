@@ -5,6 +5,7 @@ A whole send in one insert. A copy of the input is filtered, driven and echoed i
 ## Send
 
 - HP FREQ removes the lows from everything that follows, so the reverb and echoes stay out of the low end. The input itself is never filtered.
+- LP FREQ removes the highs in the same way, for a darker reverb. Fully right it does nothing.
 - DRIVE adds harmonics before the echoes and the reverb, without making the send much louder. At 0 it does nothing.
 
 ## Delay
@@ -22,12 +23,12 @@ A whole send in one insert. A copy of the input is filtered, driven and echoed i
 
 ## Output
 
-- DUCK turns the reverb and echoes down while the input is playing, and lets them swell back in the gaps. At 0 it does nothing, and at 1 they are silent under a loud input.
-- MIX blends the input with the reverb and echoes. At 0 only the input is heard, and at 1 only the reverb and echoes.
+- DUCK turns the reverb and echoes down while the input is playing, and lets them swell back in the gaps. At 0 it does nothing, and at 1 they are silent under the input, however loud or quiet the track is.
+- MIX brings the reverb and echoes in under the input, up to half way, where both are at full level. Past half way the input fades out, and at 1 only the reverb and echoes are heard.
 
 ## Display
 
-- The spectrum shows the reverb and echoes in red over the input in grey, as loud as each is in the output. The line is the highpass, and the bar on the right drops as DUCK holds the reverb down. Analyser in the ... menu switches it off and on.
+- The spectrum shows the reverb and echoes in red over the input, the grey shape behind, as loud as each is in the output. The curve along the top is what HP FREQ and LP FREQ let through, and the bar on the right drops as DUCK holds the reverb down. Analyser in the ... menu switches it off and on.
 - GAIN, beside the meter, turns the whole output up or down, in dB.
 - The meter in the corner shows the output peak, and its light turns on when the output goes over 0 dB.
 - Click a knob's name to type a value.

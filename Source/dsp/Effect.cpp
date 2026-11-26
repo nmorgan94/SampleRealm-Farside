@@ -11,10 +11,11 @@ void Effect::prepare (double newSampleRate, int maxBlockSize, int numInputChanne
     echoes.setSize (numOutputChannels, maxBlockSize);
     delay.prepare (sampleRate, numOutputChannels);
     ducker.prepare (sampleRate);
+    highpass.prepare (sampleRate);
+    lowpass.prepare (sampleRate);
 
+    setSettings (settings);
     reset();
-    highpassCoefficientsFreq = 0.0f;
-    updateHighpass();
 }
 
 void Effect::reset()
@@ -22,11 +23,9 @@ void Effect::reset()
     reverb.reset();
     delay.reset();
     ducker.reset();
+    highpass.reset();
+    lowpass.reset();
     ramping = false;
-
-    for (auto& stage : highpass)
-        for (auto& filter : stage)
-            filter.reset();
 }
 
 void Effect::setSettings (const Settings& newSettings)
@@ -43,24 +42,13 @@ void Effect::setSettings (const Settings& newSettings)
 
     drive.setAmount (settings.drive);
     delay.setFeedback (settings.delayFeedback);
-    outputGain = juce::Decibels::decibelsToGain (settings.outputGainDb);
 
-    updateHighpass();
-}
+    const auto mix = mixGainsFor (settings.mix);
+    const auto outputGain = juce::Decibels::decibelsToGain (settings.outputGainDb);
+    gains = { mix.dry * outputGain, mix.wet * outputGain };
 
-void Effect::updateHighpass()
-{
-    if (sampleRate <= 0.0 || juce::exactlyEqual (settings.highpassFreq, highpassCoefficientsFreq))
-        return;
-
-    highpassCoefficientsFreq = settings.highpassFreq;
-    // Unstable at or above Nyquist
-    const auto frequency = std::min<double> (settings.highpassFreq, sampleRate * 0.49);
-    const auto coefficients = juce::IIRCoefficients::makeHighPass (sampleRate, frequency);
-
-    for (auto& stage : highpass)
-        for (auto& filter : stage)
-            filter.setCoefficients (coefficients);
+    highpass.setFrequency (settings.highpassFreq);
+    lowpass.setFrequency (settings.lowpassFreq);
 }
 
 void Effect::process (juce::AudioBuffer<float>& buffer, const Transport& transport)
@@ -95,20 +83,20 @@ void Effect::processChunk (juce::AudioBuffer<float>& buffer)
     if (! ramping)
     {
         lastDelayLevel = settings.delayLevel;
-        lastOutputGain = outputGain;
+        lastGains = gains;
+        drive.snap();
+        delay.snap();
+        highpass.snap();
+        lowpass.snap();
         ramping = true;
     }
 
     for (int channel = 0; channel < numChannels; ++channel)
         wet.copyFrom (channel, 0, buffer, channel, 0, numSamples);
 
-    if (settings.highpassFreq > highpassOffFreq)
-        for (auto& stage : highpass)
-            for (int channel = 0; channel < numChannels; ++channel)
-                stage[static_cast<size_t> (channel)].processSamples (wet.getWritePointer (channel), numSamples);
-
-    for (int channel = 0; channel < numChannels; ++channel)
-        drive.process (wet.getWritePointer (channel), numSamples);
+    highpass.process (wet, numChannels, numSamples);
+    lowpass.process (wet, numChannels, numSamples);
+    drive.process (wet, numChannels, numSamples);
 
     // The line always runs, so its echoes are there when the level comes up
     juce::AudioBuffer<float> echoesNow { echoes.getArrayOfWritePointers(), numChannels, numSamples };
@@ -158,12 +146,10 @@ void Effect::processChunk (juce::AudioBuffer<float>& buffer)
         }
     }
 
-    const auto dryGain = 1.0f - settings.mix;
-
     for (int channel = 0; channel < numChannels; ++channel)
     {
-        buffer.applyGainRamp (channel, 0, numSamples, dryGain * lastOutputGain, dryGain * outputGain);
-        wet.applyGainRamp (channel, 0, numSamples, settings.mix * lastOutputGain, settings.mix * outputGain);
+        buffer.applyGainRamp (channel, 0, numSamples, lastGains.dry, gains.dry);
+        wet.applyGainRamp (channel, 0, numSamples, lastGains.wet, gains.wet);
     }
 
     if (tap != nullptr)
@@ -172,5 +158,5 @@ void Effect::processChunk (juce::AudioBuffer<float>& buffer)
     for (int channel = 0; channel < numChannels; ++channel)
         buffer.addFrom (channel, 0, wet, channel, 0, numSamples);
 
-    lastOutputGain = outputGain;
+    lastGains = gains;
 }

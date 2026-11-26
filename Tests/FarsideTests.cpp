@@ -28,7 +28,8 @@ TEST_CASE_METHOD (ProcessorFixture, "Parameters match the snapshot hosts rely on
         { "damping",        1, "Damping",         "",  0.0f,     1.0f, 0.01f, 1.0f,    0.8f, { "0.00", "0.50", "1.00" },  true,  false },
         { "width",          1, "Width",           "",  0.0f,     1.0f, 0.01f, 1.0f,    0.5f, { "0.00", "0.50", "1.00" },  true,  false },
         { "mix",            1, "Mix",             "",  0.0f,     1.0f, 0.01f, 1.0f,    0.5f, { "0.00", "0.50", "1.00" },  true,  false },
-        { "highpassFreq",   1, "Highpass Freq",   "", 20.0f, 20000.0f,  1.0f, 0.2f, 250.0f,  { "20", "644", "20000" },    true,  false },
+        { "highpassFreq",   1, "Highpass Freq",   "", 20.0f,  5000.0f,  1.0f, 0.4f, 250.0f,  { "20", "900", "5000" },     true,  false },
+        { "lowpassFreq",    1, "Lowpass Freq",    "", 500.0f, 20000.0f, 1.0f, 0.4f, 20000.0f, { "500", "3947", "20000" },    true,  false },
         { "drive",          1, "Drive",           "",  0.0f,     1.0f, 0.01f, 1.0f,    0.0f, { "0.00", "0.50", "1.00" },  true,  false },
         { "delaySync",      1, "Delay Sync",      "",  0.0f,     1.0f,  1.0f, 1.0f,    1.0f, { "Off", "On", "On" },       true,  true  },
         { "delayNote",      1, "Delay Note",      "",  0.0f,     6.0f,  1.0f, 1.0f,    4.0f, { "1/16", "1/8D", "1/2" },   true,  false },
@@ -90,7 +91,7 @@ TEST_CASE_METHOD (ProcessorFixture, "Output stays finite for any block size, inp
     CAPTURE (extras);
 
     // Sweeps the send path across its range between blocks, as host automation would
-    for (const auto highpassFreq : { 20.0f, 1000.0f, 20000.0f })
+    for (const auto highpassFreq : { 20.0f, 1000.0f, 5000.0f })
     {
         for (const auto mix : { 0.0f, 0.5f, 1.0f })
         {

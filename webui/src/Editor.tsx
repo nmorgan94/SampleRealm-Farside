@@ -75,6 +75,7 @@ const STAGES: { name: string; knobs: Knob[] }[] = [
     name: 'SEND',
     knobs: [
       { id: 'highpassFreq', label: 'HP FREQ', unit: 'Hz' },
+      { id: 'lowpassFreq', label: 'LP FREQ', unit: 'Hz' },
       { id: 'drive', label: 'DRIVE' },
     ],
   },

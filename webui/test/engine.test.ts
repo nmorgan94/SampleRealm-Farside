@@ -20,7 +20,8 @@ test('the ui info carries the version, the commit, the build type and every para
     real('damping', 'Damping', 0, 1, 0.8, 0.01),
     real('width', 'Width', 0, 1, 0.5, 0.01),
     real('mix', 'Mix', 0, 1, 0.5, 0.01),
-    real('highpassFreq', 'Highpass Freq', 20, 20000, 250, 1, 0.2),
+    real('highpassFreq', 'Highpass Freq', 20, 5000, 250, 1, 0.4),
+    real('lowpassFreq', 'Lowpass Freq', 500, 20000, 20000, 1, 0.4),
     real('drive', 'Drive', 0, 1, 0, 0.01),
     { id: 'delaySync', name: 'Delay Sync', kind: 'toggle', min: 0, max: 1, defaultValue: 1, step: 1, skew: 1, unit: '', choices: [] },
     { id: 'delayNote', name: 'Delay Note', kind: 'choice', min: 0, max: 6, defaultValue: 4, step: 1, skew: 1, unit: '', choices: ['1/16', '1/8T', '1/8', '1/8D', '1/4', '1/4D', '1/2'] },
@@ -40,7 +41,7 @@ test('the output stays finite for silence, denormals, full scale and very loud i
     reverb.set('delayLevel', 1);
     reverb.set('delayFeedback', 0.95);
     reverb.set('duck', 1);
-    for (const [highpassFreq, mix] of [[20, 0], [1000, 0.5], [20000, 1], [20, 1]] as const) {
+    for (const [highpassFreq, mix] of [[20, 0], [1000, 0.5], [5000, 1], [20, 1]] as const) {
       reverb.set('highpassFreq', highpassFreq);
       reverb.set('mix', mix);
       const output = reverb.processBlocks([sine(0.05, amplitude), sine(0.05, amplitude, 220)]);
@@ -98,12 +99,47 @@ test('the highpass keeps low end out of the reverb', () => {
   assert.ok(filtered < open / 100, `filtered ${filtered} against ${open}`);
 });
 
-test('the highpass stays stable when set above half a low sample rate', () => {
+test('the lowpass keeps the top end out of the reverb, and is off at the top of its range', () => {
+  const wetRms = (lowpassFreq: number) => {
+    const reverb = engine();
+    reverb.set('mix', 1);
+    reverb.set('highpassFreq', 20);
+    reverb.set('lowpassFreq', lowpassFreq);
+    const [left] = reverb.processBlocks([sine(0.5, 0.5, 8000), sine(0.5, 0.5, 8000)]);
+    return rms(left!, samples(0.2));
+  };
+
+  const open = wetRms(20000);
+  const filtered = wetRms(500);
+
+  assert.ok(open > 1e-3, `unfiltered ${open}`);
+  assert.ok(filtered < open / 100, `filtered ${filtered} against ${open}`);
+});
+
+test('the mix leaves the dry signal at unity up to half way, then fades it out', () => {
+  // With no room, the wet signal is small beside the dry one
+  const output = (mix: number) => {
+    const reverb = engine();
+    reverb.set('mix', mix);
+    reverb.set('roomSize', 0);
+    reverb.set('highpassFreq', 5000);
+    const [left] = reverb.processBlocks([sine(0.5, 0.5, 100), sine(0.5, 0.5, 100)]);
+    return rms(left!, samples(0.2));
+  };
+
+  const dry = output(0);
+  assert.ok(Math.abs(output(0.5) / dry - 1) < 0.02, `half way ${output(0.5)} against ${dry}`);
+  assert.ok(Math.abs(output(0.75) / dry - 0.5) < 0.02, `three quarters ${output(0.75)} against ${dry}`);
+  assert.ok(output(1) < dry / 50, `fully wet ${output(1)}`);
+});
+
+test('the lowpass stays stable when set above half a low sample rate', () => {
   const lowRate = 22050;
   const reverb = engine();
   reverb.engine.prepare(lowRate, 2);
   reverb.set('mix', 1);
-  reverb.set('highpassFreq', 18000);
+  reverb.set('highpassFreq', 20);
+  reverb.set('lowpassFreq', 18000);
   const output = reverb.processBlocks([sine(0.5, 0.5, 440, lowRate), sine(0.5, 0.25, 220, lowRate)]);
 
   assert.ok(output.every((channel) => channel.every(Number.isFinite)));
@@ -212,6 +248,24 @@ test('duck holds the wet signal down under the dry one, and lets the tail up onc
   assert.ok(open.underDry > 1e-2, `open ${open.underDry}`);
   assert.ok(ducked.underDry < open.underDry / 100, `ducked ${ducked.underDry} against ${open.underDry}`);
   assert.ok(ducked.afterDry > open.afterDry * 0.8, `tail ${ducked.afterDry} against ${open.afterDry}`);
+});
+
+test('a quiet dry signal ducks the wet one as far as a loud one does', () => {
+  const ducked = (level: number) => {
+    const wet = (duck: number) => {
+      const reverb = engine();
+      reverb.set('mix', 1);
+      reverb.set('duck', duck);
+      const [left] = reverb.processBlocks([sine(1, level, 2000), sine(1, level, 2000)]);
+      return rms(left!, samples(0.5));
+    };
+    return wet(0.5) / wet(0);
+  };
+
+  // 20 dB apart
+  const loud = ducked(0.5);
+  assert.ok(Math.abs(loud - 0.5) < 0.05, `loud ${loud}`);
+  assert.ok(Math.abs(ducked(0.05) - loud) < 0.01, `quiet ${ducked(0.05)} against ${loud}`);
 });
 
 test('the output gain is in dB, on the dry and wet signals together', () => {

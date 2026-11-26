@@ -46,7 +46,7 @@ private:
     // access the processor object that created it.
     AudioPluginAudioProcessor& processorRef;
 
-    LabeledSlider roomSizeSlider, dampingSlider, widthSlider, mixSlider, highpassFreqSlider;
+    LabeledSlider roomSizeSlider, dampingSlider, widthSlider, mixSlider, highpassFreqSlider, lowpassFreqSlider;
     LabeledSlider driveSlider, delayFeedbackSlider, delayLevelSlider, duckSlider;
 
     // In the same place: the note while synced, the time otherwise

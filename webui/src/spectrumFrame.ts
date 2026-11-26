@@ -27,8 +27,14 @@ export const silentFrame = (): SpectrumFrame => {
 // How far up the display a level is, from 0 at the bottom to 1
 export const proportion = (db: number) => Math.min(Math.max((db - BOTTOM_DB) / (TOP_DB - BOTTOM_DB), 0), 1);
 
-// How far across the display a frequency is, from 0 at MIN_HZ to 1
-export const across = (hz: number) => Math.log(hz / MIN_HZ) / Math.log(MAX_HZ / MIN_HZ);
+// The middle of a band
+export const centreOf = (band: number) => MIN_HZ * (MAX_HZ / MIN_HZ) ** ((band + 0.5) / NUM_BANDS);
+
+// As Effect::filtersDb: what the send's filters do to a frequency, in dB, a 24 dB/oct highpass and a 12 dB/oct lowpass. A cutoff of 0 is a filter that's off
+export const filtersDb = (hz: number, highpassHz: number, lowpassHz: number) => {
+  const stageDb = (ratio: number) => -10 * Math.log10(1 + ratio ** -4);
+  return (highpassHz > 0 ? 2 * stageDb(hz / highpassHz) : 0) + (lowpassHz > 0 ? stageDb(lowpassHz / hz) : 0);
+};
 
 // The plugin sends a frame as its bytes in base64
 export function decodeFrame(base64: string): SpectrumFrame {

@@ -5,12 +5,13 @@
 #include <samplerealm/Transport.h>
 #include "Drive.h"
 #include "Ducker.h"
+#include "GlidingFilter.h"
 #include "PingPongDelay.h"
 #include "SpectrumTap.h"
 
 //==============================================================================
-/** A send in one insert: the send is highpassed (24 dB/oct), driven and echoed into a 100% wet reverb.
-    The echoes and the reverb are ducked by the dry signal, then blended with it, and the output gain is on the two together. */
+/** A send in one insert: the send is highpassed (24 dB/oct), lowpassed (12 dB/oct), driven and echoed into a 100% wet reverb.
+    The echoes and the reverb are ducked by the dry signal, then added to it, and the output gain is on the two together. */
 class Effect
 {
 public:
@@ -26,6 +27,7 @@ public:
         float width = 0.5f;
         float mix = 0.5f;
         float highpassFreq = 1000.0f;
+        float lowpassFreq = 20000.0f;
         float drive = 0.0f;
         bool delaySync = true;
         int delayNote = 4;
@@ -41,6 +43,24 @@ public:
     void reset();
     void setSettings (const Settings& newSettings);
 
+    /** As a send up to half way, the dry signal at unity while the wet one comes up to it, then the dry one fades out. */
+    struct MixGains { float dry, wet; };
+
+    static constexpr MixGains mixGainsFor (float mix)
+    {
+        return { std::min (1.0f, 2.0f * (1.0f - mix)), std::min (1.0f, 2.0f * mix) };
+    }
+
+    // Where each filter is off: the ends of their parameters' ranges
+    static constexpr float highpassOffFreq = 20.0f, lowpassOffFreq = 20000.0f;
+
+    /** What the send's two filters do to a frequency, in dB. */
+    static float filtersDb (float hz, float highpassFreq, float lowpassFreq)
+    {
+        return Highpass::responseDb (Highpass::Kind::highpass, highpassOffFreq, highpassFreq, hz)
+             + Lowpass::responseDb (Lowpass::Kind::lowpass, lowpassOffFreq, lowpassFreq, hz);
+    }
+
     /** Where the dry and wet signals go for the display, as they are in the output. Null for nowhere. */
     void setTap (SpectrumTap* newTap)   { tap = newTap; }
 
@@ -48,11 +68,11 @@ public:
     void process (juce::AudioBuffer<float>& buffer, const Transport& transport);
 
 private:
-    // At or below this, the highpass is skipped
-    static constexpr float highpassOffFreq = 20.0f;
+    // 24 and 12 dB/oct
+    using Highpass = GlidingFilter<2>;
+    using Lowpass = GlidingFilter<1>;
 
     void processChunk (juce::AudioBuffer<float>& buffer);
-    void updateHighpass();
 
     Settings settings;
     double sampleRate = 0.0;
@@ -60,15 +80,16 @@ private:
 
     juce::Reverb reverb;
 
-    // Two cascaded 12 dB/oct stages per channel
-    std::array<std::array<juce::SingleThreadedIIRFilter, maxChannels>, 2> highpass;
-    float highpassCoefficientsFreq = 0.0f;
+    Highpass highpass { Highpass::Kind::highpass, highpassOffFreq };
+    Lowpass lowpass { Lowpass::Kind::lowpass, lowpassOffFreq };
 
     Drive drive;
     PingPongDelay delay;
     Ducker ducker;
     float lastDelayLevel = 0.0f;
-    float outputGain = 1.0f, lastOutputGain = 1.0f;
+
+    // With the output gain on them
+    MixGains gains { 1.0f, 0.0f }, lastGains { 1.0f, 0.0f };
     bool ramping = false;
 
     juce::AudioBuffer<float> wet, echoes;

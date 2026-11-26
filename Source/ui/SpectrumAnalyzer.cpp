@@ -4,7 +4,8 @@
 
 //==============================================================================
 SpectrumAnalyzer::SpectrumAnalyzer (AudioPluginAudioProcessor& proc)
-    : processor (proc), highpassFreq (*proc.getAPVTS().getRawParameterValue (ParameterSpecs::highpassFreq.id))
+    : processor (proc), highpassFreq (*proc.getAPVTS().getRawParameterValue (ParameterSpecs::highpassFreq.id)),
+      lowpassFreq (*proc.getAPVTS().getRawParameterValue (ParameterSpecs::lowpassFreq.id))
 {
     setOpaque (false);
     startTimerHz (SpectrumFrame::updateHz);
@@ -40,6 +41,27 @@ juce::Path SpectrumAnalyzer::curve (int offset) const
     return path;
 }
 
+juce::Path SpectrumAnalyzer::filtersCurve() const
+{
+    const auto bounds = getLocalBounds().toFloat();
+
+    juce::Path path;
+
+    for (int band = 0; band < SpectrumFrame::numBands; ++band)
+    {
+        const auto db = Effect::filtersDb (SpectrumFrame::Analyser::centreOf (band), shown.highpass, shown.lowpass);
+        const juce::Point<float> point { bounds.getWidth() * (static_cast<float> (band) + 0.5f) / SpectrumFrame::numBands,
+                                         filtersInset + bounds.getHeight() * (1.0f - SpectrumFrame::proportion (SpectrumFrame::topDb + db)) };
+
+        if (band == 0)
+            path.startNewSubPath (point);
+        else
+            path.lineTo (point);
+    }
+
+    return path;
+}
+
 //==============================================================================
 void SpectrumAnalyzer::paint (juce::Graphics& g)
 {
@@ -47,28 +69,28 @@ void SpectrumAnalyzer::paint (juce::Graphics& g)
     const auto red = juce::Colour (CustomLookAndFeel::primaryRed);
     const auto offWhite = juce::Colour (CustomLookAndFeel::offWhite);
 
-    g.setColour (offWhite.withAlpha (0.35f));
-    g.strokePath (curve (SpectrumFrame::dryOffset), juce::PathStrokeType (1.0f));
+    const auto filled = [&bounds] (juce::Path path)
+    {
+        path.lineTo (bounds.getBottomRight());
+        path.lineTo (bounds.getBottomLeft());
+        path.closeSubPath();
+        return path;
+    };
+
+    // The dry signal is a shape with no outline, to tell it from the filters' curve
+    g.setColour (offWhite.withAlpha (0.12f));
+    g.fillPath (filled (curve (SpectrumFrame::dryOffset)));
 
     const auto wet = curve (SpectrumFrame::wetOffset);
 
-    auto fill = wet;
-    fill.lineTo (bounds.getBottomRight());
-    fill.lineTo (bounds.getBottomLeft());
-    fill.closeSubPath();
-
     g.setGradientFill (juce::ColourGradient::vertical (red.withAlpha (0.4f), 0.0f, red.withAlpha (0.1f), bounds.getHeight()));
-    g.fillPath (fill);
+    g.fillPath (filled (wet));
 
     g.setColour (red);
     g.strokePath (wet, juce::PathStrokeType (2.0f));
 
-    // At the bottom of its range the highpass is off
-    if (shownHighpassFreq > ParameterSpecs::highpassFreq.min)
-    {
-        g.setColour (offWhite.withAlpha (0.5f));
-        g.fillRect (std::floor (bounds.getWidth() * SpectrumFrame::across (shownHighpassFreq)), 0.0f, 1.0f, bounds.getHeight());
-    }
+    g.setColour (offWhite.withAlpha (0.25f));
+    g.strokePath (filtersCurve(), juce::PathStrokeType (1.0f));
 
     // Down from the top, by as much as the duck is holding the wet signal down
     const auto ducked = 1.0f - source.getFrame()[SpectrumFrame::duckGain];
@@ -84,8 +106,8 @@ void SpectrumAnalyzer::paint (juce::Graphics& g)
 void SpectrumAnalyzer::timerCallback()
 {
     const auto frameChanged = source.update (processor.getSpectrumTap(), clock.seconds(), processor.getSampleRate(), processor.isSpectrumBypassed());
-    const auto cutoff = highpassFreq.load();
-    const auto cutoffMoved = ! juce::exactlyEqual (cutoff, std::exchange (shownHighpassFreq, cutoff));
+    const Cutoffs cutoffs { highpassFreq.load(), lowpassFreq.load() };
+    const auto cutoffMoved = cutoffs != std::exchange (shown, cutoffs);
 
     if (frameChanged || cutoffMoved)
         repaint();

@@ -47,10 +47,4 @@ namespace SpectrumFrame
     {
         return std::clamp ((db - bottomDb) / (topDb - bottomDb), 0.0f, 1.0f);
     }
-
-    /** How far across the display a frequency is, from 0 at minHz to 1. */
-    inline float across (float hz)
-    {
-        return std::log (hz / minHz) / std::log (maxHz / minHz);
-    }
 }
