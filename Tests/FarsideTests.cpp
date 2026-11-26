@@ -192,6 +192,38 @@ TEST_CASE_METHOD (ProcessorFixture, "State round trips into a new instance", "[s
     CHECK_THAT (getParameter (restored, Parameters::highpassFreqId), WithinAbs (440.0, 1.0e-4));
 }
 
+// As pluginval checks it
+TEST_CASE_METHOD (ProcessorFixture, "State puts each parameter back where a host left it", "[state]")
+{
+    juce::Random random (1);
+
+    const auto hostSets = [&random] (juce::AudioProcessorParameter& parameter)
+    {
+        const auto value = random.nextFloat();
+        parameter.setValue (value);
+        parameter.sendValueChangedMessageToListeners (value);
+    };
+
+    for (auto* parameter : processor.getParameters())
+        hostSets (*parameter);
+
+    juce::MemoryBlock state;
+    processor.getStateInformation (state);
+
+    for (auto* parameter : processor.getParameters())
+    {
+        if (! parameter->isAutomatable())
+            continue;
+
+        const auto original = parameter->getValue();
+        hostSets (*parameter);
+        processor.setStateInformation (state.getData(), static_cast<int> (state.getSize()));
+
+        INFO (parameter->getName (64));
+        CHECK_THAT (parameter->getValue(), WithinAbs (original, 0.1));
+    }
+}
+
 TEST_CASE_METHOD (ProcessorFixture, "Invalid state is ignored", "[state]")
 {
     setParameter (processor, Parameters::roomSizeId, 0.25f);
