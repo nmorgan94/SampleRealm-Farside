@@ -60,12 +60,18 @@ public:
     bool isSpectrumBypassed() const { return apvts.getRawParameterValue (ParameterSpecs::spectrumBypass.id)->load() >= 0.5f; }
 
 private:
+    Effect::Settings currentSettings() const;
+
     //==============================================================================
     juce::AudioProcessorValueTreeState apvts { *this, nullptr, "Parameters",
                                                createParameterLayout (ParameterSpecs::all, Parameters::versionHint) };
     PresetManager presetManager { apvts, createPresetConfig() };
 
     Effect effect;
+
+    // The last the host gave, for the tail
+    std::atomic<double> lastBpm { Transport().bpm };
+
     SpectrumTap spectrumTap;
     PeakMeter outputMeter { getTotalNumOutputChannels() };
 

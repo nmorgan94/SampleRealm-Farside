@@ -44,7 +44,7 @@ test('every shipped factory preset sets every parameter but the analyser switch 
 // As Tests/PresetTests.cpp
 test("the analyser switch doesn't mark the preset modified, but a knob does", async () => {
   const { presets, setValue } = backendForTest();
-  await presets.load({ name: 'Vocal Plate', category: 'Vocal', isFactory: true });
+  await presets.load({ name: 'Vocal Plate', category: 'Lush', isFactory: true });
 
   setValue('spectrumBypass', 1);
   assert.equal(presets.status().modified, false);

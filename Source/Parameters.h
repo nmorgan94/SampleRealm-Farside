@@ -23,5 +23,7 @@ namespace Parameters
     inline const juce::ParameterID delayLevelId     { ParameterSpecs::delayLevel.id, versionHint };
     inline const juce::ParameterID duckId           { ParameterSpecs::duck.id, versionHint };
     inline const juce::ParameterID outputGainId     { ParameterSpecs::outputGain.id, versionHint };
+    inline const juce::ParameterID reverbTypeId     { ParameterSpecs::reverbType.id, versionHint };
+    inline const juce::ParameterID preDelayId       { ParameterSpecs::preDelay.id, versionHint };
     inline const juce::ParameterID spectrumBypassId { ParameterSpecs::spectrumBypass.id, versionHint };
 }

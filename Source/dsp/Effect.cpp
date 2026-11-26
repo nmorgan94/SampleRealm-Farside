@@ -6,6 +6,11 @@ void Effect::prepare (double newSampleRate, int maxBlockSize, int numInputChanne
     sampleRate = newSampleRate;
     monoIntoStereo = numInputChannels == 1 && numOutputChannels == 2;
     reverb.setSampleRate (sampleRate);
+    plateReverb.prepare (sampleRate);
+    hallReverb.prepare (sampleRate);
+    preDelay.prepare (sampleRate);
+    otherSide.assign (static_cast<size_t> (maxBlockSize), 0.0f);
+    reverbFade.reset (sampleRate, 0.015);
 
     wet.setSize (numOutputChannels, maxBlockSize);
     echoes.setSize (numOutputChannels, maxBlockSize);
@@ -18,9 +23,18 @@ void Effect::prepare (double newSampleRate, int maxBlockSize, int numInputChanne
     reset();
 }
 
-void Effect::reset()
+void Effect::resetReverbs()
 {
     reverb.reset();
+    plateReverb.reset();
+    hallReverb.reset();
+}
+
+void Effect::reset()
+{
+    resetReverbs();
+    preDelay.reset();
+    reverbFade.setCurrentAndTargetValue (1.0f);
     delay.reset();
     ducker.reset();
     highpass.reset();
@@ -31,14 +45,23 @@ void Effect::reset()
 void Effect::setSettings (const Settings& newSettings)
 {
     settings = newSettings;
+    settings.reverbType = std::clamp (settings.reverbType, 0, numReverbTypes - 1);
+
+    // A mono output is one side of the reverb at its widest
+    const auto width = wet.getNumChannels() == 1 ? 1.0f : settings.width;
 
     juce::Reverb::Parameters parameters;
     parameters.roomSize = settings.roomSize;
     parameters.damping = settings.damping;
-    parameters.width = settings.width;
+    parameters.width = width;
     parameters.wetLevel = 1.0f;
     parameters.dryLevel = 0.0f;
     reverb.setParameters (parameters);
+
+    const auto decaySeconds = ReverbParts::decaySecondsFor (settings.roomSize);
+    plateReverb.setParameters (decaySeconds, settings.damping, width);
+    hallReverb.setParameters (decaySeconds, settings.damping, width);
+    preDelay.setTime (settings.preDelayMs / 1000.0);
 
     drive.setAmount (settings.drive);
     delay.setFeedback (settings.delayFeedback);
@@ -51,6 +74,60 @@ void Effect::setSettings (const Settings& newSettings)
     lowpass.setFrequency (settings.lowpassFreq);
 }
 
+double Effect::delaySecondsFor (const Settings& settings, double bpm)
+{
+    const auto note = static_cast<size_t> (std::clamp (settings.delayNote, 0, static_cast<int> (delayNoteBeats.size()) - 1));
+    const auto seconds = settings.delaySync ? delayNoteBeats[note] * 60.0 / std::max (1.0, bpm) : settings.delayTimeMs / 1000.0;
+    return std::clamp (seconds, PingPongDelay::minSeconds, PingPongDelay::maxSeconds);
+}
+
+double Effect::tailSecondsFor (const Settings& settings, double bpm)
+{
+    auto seconds = settings.preDelayMs / 1000.0 + ReverbParts::decaySecondsFor (settings.roomSize);
+
+    // Each repeat is the feedback times the last, down to -60 dB
+    if (settings.delayLevel > 0.0f)
+        seconds += delaySecondsFor (settings, bpm) * (settings.delayFeedback > 0.0f ? std::ceil (-3.0 / std::log10 (settings.delayFeedback)) : 1.0);
+
+    return std::min (seconds, maxTailSeconds);
+}
+
+void Effect::processReverb (int numChannels, int numSamples)
+{
+    const auto fadingOut = [this] { return reverbFade.getTargetValue() < 1.0f; };
+
+    if (! fadingOut() && reverbFade.isSmoothing())
+        reverbFade.applyGain (wet, numSamples);
+
+    auto* left = wet.getWritePointer (0);
+    auto* right = numChannels == 1 ? otherSide.data() : wet.getWritePointer (1);
+
+    if (numChannels == 1)
+        std::copy_n (left, numSamples, right);
+
+    if (reverbType == classic)
+        reverb.processStereo (left, right, numSamples);
+    else if (reverbType == plate)
+        plateReverb.process (left, right, numSamples);
+    else
+        hallReverb.process (left, right, numSamples);
+
+    if (settings.reverbType != reverbType && ! reverbFade.isSmoothing())
+        reverbFade.setTargetValue (0.0f);
+
+    if (fadingOut())
+    {
+        reverbFade.applyGain (wet, numSamples);
+
+        if (! reverbFade.isSmoothing())
+        {
+            reverbType = settings.reverbType;
+            resetReverbs();
+            reverbFade.setTargetValue (1.0f);
+        }
+    }
+}
+
 void Effect::process (juce::AudioBuffer<float>& buffer, const Transport& transport)
 {
     if (monoIntoStereo)
@@ -61,9 +138,7 @@ void Effect::process (juce::AudioBuffer<float>& buffer, const Transport& transpo
     if (chunkSize == 0)
         return;
 
-    const auto note = static_cast<size_t> (std::clamp (settings.delayNote, 0, static_cast<int> (delayNoteBeats.size()) - 1));
-    delay.setTime (settings.delaySync ? delayNoteBeats[note] * 60.0 / std::max (1.0, transport.bpm)
-                                      : settings.delayTimeMs / 1000.0);
+    delay.setTime (delaySecondsFor (settings, transport.bpm));
 
     // Hosts can send more than they prepared for
     for (int start = 0; start < buffer.getNumSamples(); start += chunkSize)
@@ -86,6 +161,10 @@ void Effect::processChunk (juce::AudioBuffer<float>& buffer)
         lastGains = gains;
         drive.snap();
         delay.snap();
+        preDelay.snap();
+        plateReverb.snap();
+        hallReverb.snap();
+        reverbType = settings.reverbType;
         highpass.snap();
         lowpass.snap();
         ramping = true;
@@ -118,10 +197,8 @@ void Effect::processChunk (juce::AudioBuffer<float>& buffer)
 
     addEchoes();
 
-    if (numChannels == 1)
-        reverb.processMono (wet.getWritePointer (0), numSamples);
-    else if (numChannels == 2)
-        reverb.processStereo (wet.getWritePointer (0), wet.getWritePointer (1), numSamples);
+    preDelay.process (wet, numChannels, numSamples);
+    processReverb (numChannels, numSamples);
 
     addEchoes();
     lastDelayLevel = settings.delayLevel;

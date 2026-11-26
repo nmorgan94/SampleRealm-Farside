@@ -10,10 +10,10 @@ import { useManual } from '@samplerealm/modules/editor/ManualOverlay.tsx';
 import { usePrompt } from '@samplerealm/modules/editor/PromptOverlay.tsx';
 import manualText from '../../Assets/Manual.md?raw';
 import type { FarsideBackend } from './backend.ts';
-import { FarsideRotary, ToggleText } from './controls.tsx';
+import { ChoiceText, FarsideRotary, ToggleText } from './controls.tsx';
 import { Spectrum } from './Spectrum.tsx';
 
-export const EDITOR_WIDTH = 430;
+export const EDITOR_WIDTH = 480;
 export const EDITOR_HEIGHT = 556;
 
 // The output gain and the meter beside it, in the header's meter slot
@@ -45,8 +45,7 @@ const SLIDER_WIDTH = 88;
 const KNOB_SIZE = 70;
 const LABEL_HEIGHT = 20;
 const NAME_HEIGHT = 13;
-const KNOB_SPACING = 27;
-const KNOBS_PER_ROW = 3;
+const KNOBS_WIDTH = 388;
 
 const ROWS_TOP = HEADER_LAYOUT.height + SPECTRUM_HEIGHT + 4;
 const ROW_PITCH = 104;
@@ -69,6 +68,8 @@ type Knob = { id: string; label: string; unit?: string };
 const DELAY_NOTE: Knob = { id: 'delayNote', label: 'TIME' };
 const DELAY_TIME: Knob = { id: 'delayTime', label: 'TIME', unit: 'ms' };
 
+const ROOM_SIZE: Knob = { id: 'roomSize', label: 'ROOM SIZE' };
+
 // Top down, in the order the signal goes through them
 const STAGES: { name: string; knobs: Knob[] }[] = [
   {
@@ -83,7 +84,8 @@ const STAGES: { name: string; knobs: Knob[] }[] = [
   {
     name: 'REVERB',
     knobs: [
-      { id: 'roomSize', label: 'ROOM SIZE' },
+      { id: 'preDelay', label: 'PRE-DELAY', unit: 'ms' },
+      ROOM_SIZE,
       { id: 'damping', label: 'DAMPING' },
       { id: 'width', label: 'WIDTH' },
     ],
@@ -91,20 +93,30 @@ const STAGES: { name: string; knobs: Knob[] }[] = [
   { name: 'OUTPUT', knobs: [{ id: 'duck', label: 'DUCK' }, { id: 'mix', label: 'MIX' }] },
 ];
 
-const DELAY_ROW = STAGES.findIndex(({ knobs }) => knobs.includes(DELAY_NOTE));
-
-const stageLeft = centred(EDITOR_WIDTH, STAGE_WIDTH + STAGE_GAP + SLIDER_WIDTH * KNOBS_PER_ROW + KNOB_SPACING * (KNOBS_PER_ROW - 1));
+const stageLeft = centred(EDITOR_WIDTH, STAGE_WIDTH + STAGE_GAP + KNOBS_WIDTH);
 const knobsLeft = stageLeft + STAGE_WIDTH + STAGE_GAP;
-const knobLeft = (column: number) => knobsLeft + (SLIDER_WIDTH + KNOB_SPACING) * column;
+
+// Each in the middle of an equal share of its row. The same sum as layOutRow in PluginEditor.cpp
+const knobLeft = (row: number, column: number) => {
+  const count = STAGES[row]!.knobs.length;
+  return knobsLeft + Math.floor(((2 * column + 1) * KNOBS_WIDTH - count * SLIDER_WIDTH) / (2 * count));
+};
 const rowTop = (row: number) => ROWS_TOP + ROW_PITCH * row;
 
-// Under the knob it switches
-const SYNC_BOUNDS = {
-  left: knobLeft(0) + SLIDER_WIDTH / 2 - SYNC_WIDTH / 2,
-  top: rowTop(DELAY_ROW) + KNOB_SIZE + LABEL_HEIGHT + 1,
-  width: SYNC_WIDTH,
-  height: SYNC_HEIGHT,
+// For the small text under a knob
+const underKnob = (knob: Knob) => {
+  const row = STAGES.findIndex(({ knobs }) => knobs.includes(knob));
+
+  return {
+    left: knobLeft(row, STAGES[row]!.knobs.indexOf(knob)) + SLIDER_WIDTH / 2 - SYNC_WIDTH / 2,
+    top: rowTop(row) + KNOB_SIZE + LABEL_HEIGHT + 1,
+    width: SYNC_WIDTH,
+    height: SYNC_HEIGHT,
+  };
 };
+
+const SYNC_BOUNDS = underKnob(DELAY_NOTE);
+const TYPE_BOUNDS = underKnob(ROOM_SIZE);
 
 // AudioPluginAudioProcessorEditor::drawStage
 function Stage({ row, name }: { row: number; name: string }) {
@@ -157,7 +169,7 @@ export const Editor = memo(function Editor({ backend }: { backend: FarsideBacken
               const { id, label, unit } = knob === DELAY_NOTE && !synced ? DELAY_TIME : knob;
 
               return (
-                <div key={id} className="absolute" style={{ left: knobLeft(column), top: rowTop(row) }}>
+                <div key={id} className="absolute" style={{ left: knobLeft(row, column), top: rowTop(row) }}>
                   <LabeledSlider
                     backend={backend}
                     id={id}
@@ -177,6 +189,7 @@ export const Editor = memo(function Editor({ backend }: { backend: FarsideBacken
         ))}
 
         <ToggleText backend={backend} id="delaySync" text="SYNC" style={SYNC_BOUNDS} />
+        <ChoiceText backend={backend} id="reverbType" style={TYPE_BOUNDS} />
 
         <h1
           className="absolute inset-x-0 flex items-center justify-center text-fg"

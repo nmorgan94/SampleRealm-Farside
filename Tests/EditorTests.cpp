@@ -22,7 +22,7 @@ TEST_CASE_METHOD (ProcessorFixture, "Each knob and its parameter follow each oth
 
     CHECK (editor.getWidth() == AudioPluginAudioProcessorEditor::width);
     CHECK (editor.getHeight() == AudioPluginAudioProcessorEditor::height);
-    CHECK (descendantsOf<LabeledSlider> (editor).size() == 13);
+    CHECK (descendantsOf<LabeledSlider> (editor).size() == 14);
 
     for (const auto* id : { &Parameters::roomSizeId, &Parameters::dampingId, &Parameters::widthId,
                             &Parameters::mixId, &Parameters::driveId,
@@ -48,6 +48,19 @@ TEST_CASE_METHOD (ProcessorFixture, "The highpass knob reads in Hz, which the ed
     setParameter (processor, Parameters::highpassFreqId, 440.0f);
     CHECK_THAT (knob.getValue(), WithinAbs (440.0, 1.0e-4));
     CHECK (knob.getTextFromValue (knob.getValue()) == "440 Hz");
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "The pre-delay knob reads in ms, which the editor adds", "[editor]")
+{
+    AudioPluginAudioProcessorEditor editor (processor);
+    auto& knob = findKnob (editor, Parameters::preDelayId);
+
+    setParameter (processor, Parameters::preDelayId, 120.0f);
+    CHECK_THAT (knob.getValue(), WithinAbs (120.0, 1.0e-4));
+    CHECK (knob.getTextFromValue (knob.getValue()) == "120 ms");
+
+    knob.setValue (40.0, juce::sendNotificationSync);
+    CHECK_THAT (getParameter (processor, Parameters::preDelayId), WithinAbs (40.0, 1.0e-4));
 }
 
 TEST_CASE_METHOD (ProcessorFixture, "The gain knob is in the header and reads in dB, which the editor adds", "[editor]")
@@ -108,4 +121,22 @@ TEST_CASE_METHOD (ProcessorFixture, "The header, its buttons and its menus are i
     CHECK (lookAndFeel.getLabelFont (bold).getTypefacePtr()->getName() == "Orbitron");
     CHECK (lookAndFeel.getTextButtonFont (button, 24).getTypefacePtr()->getName() == "Orbitron");
     CHECK (lookAndFeel.getPopupMenuFont().getTypefacePtr()->getName() == "Orbitron");
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "The reverb's type shows under the room size, and a click moves on to the next", "[editor]")
+{
+    AudioPluginAudioProcessorEditor editor (processor);
+    auto* button = dynamic_cast<juce::TextButton*> (editor.findChildWithID (Parameters::reverbTypeId.getParamID()));
+    REQUIRE (button != nullptr);
+
+    for (const auto* expected : { "CLASSIC", "PLATE", "HALL", "CLASSIC" })
+    {
+        CHECK (button->getButtonText() == expected);
+        button->onClick();
+    }
+
+    CHECK_THAT (getParameter (processor, Parameters::reverbTypeId), WithinAbs (1.0, 0.0));
+
+    setParameter (processor, Parameters::reverbTypeId, 2.0f);
+    CHECK (button->getButtonText() == "HALL");
 }

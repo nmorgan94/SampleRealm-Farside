@@ -17,9 +17,11 @@ A whole send in one insert. A copy of the input is filtered, driven and echoed i
 
 ## Reverb
 
-- ROOM SIZE sets how long the reverb rings.
+- The word under ROOM SIZE is the kind of reverb. Click it to move on: CLASSIC is a plain room, PLATE is bright and dense, HALL is big and smooth and takes a moment to build.
+- PRE-DELAY holds the reverb back, so the input is heard clearly before it. The echoes are not held back.
+- ROOM SIZE sets how long the reverb rings, the same for all three kinds.
 - DAMPING makes the highs die away faster.
-- WIDTH goes from mono at 0 to full stereo at 1.
+- WIDTH goes from mono at 0 to full stereo at 1. On a mono output it does nothing.
 
 ## Output
 

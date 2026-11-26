@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PRESET name="Surf Plate" category="Tight" author="SampleRealm" formatVersion="1">
+  <Parameters>
+    <PARAM id="roomSize" value="0.45"/>
+    <PARAM id="damping" value="0.3"/>
+    <PARAM id="width" value="0.7"/>
+    <PARAM id="mix" value="0.3"/>
+    <PARAM id="highpassFreq" value="300.0"/>
+    <PARAM id="lowpassFreq" value="9000.0"/>
+    <PARAM id="drive" value="0.2"/>
+    <PARAM id="delaySync" value="0.0"/>
+    <PARAM id="delayNote" value="4.0"/>
+    <PARAM id="delayTime" value="120.0"/>
+    <PARAM id="delayFeedback" value="0.15"/>
+    <PARAM id="delayLevel" value="0.4"/>
+    <PARAM id="duck" value="0.0"/>
+    <PARAM id="outputGain" value="0.0"/>
+    <PARAM id="reverbType" value="1.0"/>
+    <PARAM id="preDelay" value="0.0"/>
+  </Parameters>
+</PRESET>

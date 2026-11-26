@@ -87,10 +87,17 @@ bool AudioPluginAudioProcessor::isMidiEffect() const
    #endif
 }
 
+Effect::Settings AudioPluginAudioProcessor::currentSettings() const
+{
+    return makeEffectSettings ([this] (const ParameterSpecs::Spec& spec) -> float
+    {
+        return *apvts.getRawParameterValue (spec.id);
+    });
+}
+
 double AudioPluginAudioProcessor::getTailLengthSeconds() const
 {
-    // Long enough for most settings: high feedback or a full room rings for longer
-    return 10.0;
+    return Effect::tailSecondsFor (currentSettings(), lastBpm);
 }
 
 int AudioPluginAudioProcessor::getNumPrograms()
@@ -169,13 +176,12 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     juce::ScopedNoDenormals noDenormals;
 
-    effect.setSettings (makeEffectSettings ([this] (const ParameterSpecs::Spec& spec) -> float
-    {
-        return *apvts.getRawParameterValue (spec.id);
-    }));
+    effect.setSettings (currentSettings());
 
     effect.setTap (isSpectrumBypassed() ? nullptr : &spectrumTap);
-    effect.process (buffer, Transport::from (getPlayHead()));
+    const auto transport = Transport::from (getPlayHead());
+    lastBpm = transport.bpm;
+    effect.process (buffer, transport);
 
     outputMeter.process (buffer);
 }

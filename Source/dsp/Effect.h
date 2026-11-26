@@ -8,9 +8,13 @@
 #include "GlidingFilter.h"
 #include "PingPongDelay.h"
 #include "SpectrumTap.h"
+#include "reverb/HallReverb.h"
+#include "reverb/PlateReverb.h"
+#include "reverb/PreDelay.h"
 
 //==============================================================================
-/** A send in one insert: the send is highpassed (24 dB/oct), lowpassed (12 dB/oct), driven and echoed into a 100% wet reverb.
+/** A send in one insert: the send is highpassed (24 dB/oct), lowpassed (12 dB/oct), driven and echoed into a 100% wet reverb,
+    which is one of three.
     The echoes and the reverb are ducked by the dry signal, then added to it, and the output gain is on the two together. */
 class Effect
 {
@@ -20,8 +24,13 @@ public:
     // Beats per echo, in the order of ParameterSpecs::delayNotes
     static constexpr std::array delayNoteBeats { 0.25, 1.0 / 3.0, 0.5, 0.75, 1.0, 1.5, 2.0 };
 
+    // In the order of ParameterSpecs::reverbTypes
+    enum ReverbType { classic, plate, hall, numReverbTypes };
+
     struct Settings
     {
+        int reverbType = classic;
+        float preDelayMs = 0.0f;
         float roomSize = 0.8f;
         float damping = 0.8f;
         float width = 0.5f;
@@ -61,6 +70,10 @@ public:
              + Lowpass::responseDb (Lowpass::Kind::lowpass, lowpassOffFreq, lowpassFreq, hz);
     }
 
+    /** How long it rings on after its input stops, at a tempo for a synced delay. No more than maxTailSeconds. */
+    static double tailSecondsFor (const Settings& settings, double bpm);
+    static constexpr double maxTailSeconds = 30.0;
+
     /** Where the dry and wet signals go for the display, as they are in the output. Null for nowhere. */
     void setTap (SpectrumTap* newTap)   { tap = newTap; }
 
@@ -73,12 +86,22 @@ private:
     using Lowpass = GlidingFilter<1>;
 
     void processChunk (juce::AudioBuffer<float>& buffer);
+    void processReverb (int numChannels, int numSamples);
+    void resetReverbs();
+    static double delaySecondsFor (const Settings& settings, double bpm);
 
     Settings settings;
     double sampleRate = 0.0;
     bool monoIntoStereo = false;
 
     juce::Reverb reverb;
+    PlateReverb plateReverb;
+    HallReverb hallReverb;
+    PreDelay preDelay;
+
+    // The one that's heard. A change of type fades its output away, then what goes into the new one in
+    int reverbType = classic;
+    juce::SmoothedValue<float> reverbFade { 1.0f };
 
     Highpass highpass { Highpass::Kind::highpass, highpassOffFreq };
     Lowpass lowpass { Lowpass::Kind::lowpass, lowpassOffFreq };
@@ -93,6 +116,9 @@ private:
     bool ramping = false;
 
     juce::AudioBuffer<float> wet, echoes;
+
+    // The reverb's other side, when the output is mono
+    std::vector<float> otherSide;
 
     SpectrumTap* tap = nullptr;
 };

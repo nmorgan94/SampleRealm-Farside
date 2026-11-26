@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { blockSize, maxError, rms, sampleRate, sine } from '@samplerealm/modules/testing/engine.ts';
-import { engine } from './engine.ts';
+import { engine, param } from './engine.ts';
 
 const samples = (seconds: number) => Math.round(seconds * sampleRate);
 
@@ -30,6 +30,8 @@ test('the ui info carries the version, the commit, the build type and every para
     real('delayLevel', 'Delay Level', 0, 1, 0, 0.01),
     real('duck', 'Duck', 0, 1, 0, 0.01),
     real('outputGain', 'Output Gain', -24, 12, 0, 0.1),
+    { id: 'reverbType', name: 'Reverb Type', kind: 'choice', min: 0, max: 2, defaultValue: 0, step: 1, skew: 1, unit: '', choices: ['Classic', 'Plate', 'Hall'] },
+    real('preDelay', 'Pre-Delay', 0, 250, 0, 1, 0.5),
     { id: 'spectrumBypass', name: 'Spectrum Bypass', kind: 'toggle', min: 0, max: 1, defaultValue: 0, step: 1, skew: 1, unit: '', choices: [], isPerformanceControl: true },
   ]);
 });
@@ -266,6 +268,62 @@ test('a quiet dry signal ducks the wet one as far as a loud one does', () => {
   const loud = ducked(0.5);
   assert.ok(Math.abs(loud - 0.5) < 0.05, `loud ${loud}`);
   assert.ok(Math.abs(ducked(0.05) - loud) < 0.01, `quiet ${ducked(0.05)} against ${loud}`);
+});
+
+const REVERB_TYPES = param('reverbType').choices;
+
+test('every reverb leaves a tail that decays, stays finite with the room full, and is as loud as the others', () => {
+  const levels = REVERB_TYPES.map((name, type) => {
+    const reverb = engine();
+    reverb.set('reverbType', type);
+    reverb.set('mix', 1);
+    reverb.set('highpassFreq', 20);
+    const [left] = reverb.processBlocks([impulse(3), impulse(3)]);
+    const early = rms(left!, samples(0.1), samples(0.5));
+    const late = rms(left!, samples(2.5), samples(3));
+
+    assert.ok(early > 1e-4, `${name}: early tail ${early}`);
+    assert.ok(late < early / 10, `${name}: late ${late} against early ${early}`);
+
+    const full = engine();
+    full.set('reverbType', type);
+    full.set('mix', 1);
+    full.set('roomSize', 1);
+    full.set('damping', 0);
+    const [loud] = full.processBlocks([sine(5, 1), sine(5, 1, 220)]);
+    assert.ok(loud!.every(Number.isFinite), `${name}: finite`);
+
+    // Noise, as a tone can sit on one reverb's resonance and between another's
+    const noisy = engine();
+    noisy.set('reverbType', type);
+    noisy.set('mix', 1);
+    let seed = 1;
+    const noise = Float32Array.from({ length: samples(3) }, () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed / 2147483647 - 0.5) * 0.5;
+    });
+    const [wet] = noisy.processBlocks([noise, noise]);
+    return rms(wet!, samples(1.5));
+  });
+
+  for (const [type, level] of levels.entries()) {
+    const db = 20 * Math.log10(level / levels[0]!);
+    assert.ok(Math.abs(db) < 3, `${REVERB_TYPES[type]}: ${db} dB from Classic`);
+  }
+});
+
+test('the pre-delay holds every reverb back', () => {
+  for (const [type, name] of REVERB_TYPES.entries()) {
+    const reverb = engine();
+    reverb.set('reverbType', type);
+    reverb.set('mix', 1);
+    reverb.set('highpassFreq', 20);
+    reverb.set('preDelay', 100);
+    const [left] = reverb.processBlocks([impulse(0.5), impulse(0.5)]);
+
+    assert.ok(left!.subarray(0, samples(0.1)).every((sample) => sample === 0), `${name}: silent before`);
+    assert.ok(rms(left!, samples(0.1), samples(0.5)) > 1e-4, `${name}: heard after`);
+  }
 });
 
 test('the output gain is in dB, on the dry and wet signals together', () => {

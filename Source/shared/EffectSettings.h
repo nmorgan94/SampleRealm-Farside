@@ -4,6 +4,7 @@
 #include "../dsp/Effect.h"
 
 static_assert (ParameterSpecs::delayNotes.size() == Effect::delayNoteBeats.size());
+static_assert (ParameterSpecs::reverbTypes.size() == Effect::numReverbTypes);
 static_assert (juce::exactlyEqual (ParameterSpecs::highpassFreq.min, Effect::highpassOffFreq) && juce::exactlyEqual (ParameterSpecs::lowpassFreq.max, Effect::lowpassOffFreq));
 
 //==============================================================================
@@ -13,6 +14,8 @@ Effect::Settings makeEffectSettings (ValueOf&& valueOf)
     using namespace ParameterSpecs;
 
     Effect::Settings settings;
+    settings.reverbType = juce::roundToInt (valueOf (reverbType));
+    settings.preDelayMs = valueOf (preDelay);
     settings.roomSize = valueOf (roomSize);
     settings.damping = valueOf (damping);
     settings.width = valueOf (width);

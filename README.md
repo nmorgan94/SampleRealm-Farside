@@ -55,9 +55,15 @@ The reverb itself runs 100% wet, and the dry/wet blend is handled separately, so
 
 ### Reverb
 
-- Room Size, 0 to 1, default 0.80
+- **Type**, the text under ROOM SIZE, which a click moves on: Classic (the default), Plate or Hall. Changing it fades one out over 15 ms and the next in, and hosts can't automate it
+  - Classic is `juce::Reverb`, the Freeverb design
+  - Plate is bright and dense with no early echoes: Jon Dattorro's, from "Effect Design, Part 1: Reverberator and Other Filters", J. Audio Eng. Soc. 45 (9), 1997, written here from the paper
+  - Hall is longer to build and smoother: a feedback delay network after Jot and Chaigne, "Digital delay networks for designing artificial reverberators", AES 90th Convention, 1991
+- **Pre-Delay**, 0 to 250 ms, default 0: holds the reverb back behind the dry signal. The echoes aren't held back
+- Room Size, 0 to 1, default 0.80: how long it rings, the same for every type, from 0.6 s to about 10 s (2.7 s at the default)
 - Damping, 0 to 1, default 0.80 - high-frequency absorption as the tail decays
-- Width, 0 to 1, default 0.50 - stereo spread of the wet signal
+- Width, 0 to 1, default 0.50 - stereo spread of the wet signal. A mono output is one side of the reverb at its widest, so there Width does nothing
+- The plugin tells the host how long its tail is: the pre-delay, the room and the echoes (a synced delay at the host's last tempo), up to 30 seconds
 
 ### Mix
 
@@ -159,8 +165,8 @@ ctest --preset debug                            # test
 Unit tests live in `Tests/` and use [Catch2](https://github.com/catchorg/Catch2). They build into a
 `Farside_Tests` executable that links the plugin's code and drives the processor directly, checking
 a snapshot of every parameter as hosts see it, bus layouts, state save and restore, that the output
-stays finite across block sizes and parameter settings, that `Effect` matches the `juce_dsp`
-chain it replaced, that the editor's knobs follow their parameters, and that every factory preset loads.
+stays finite across block sizes and parameter settings, that the classic reverb is still
+`juce::Reverb`, that the editor's knobs follow their parameters, and that every factory preset loads.
 
 Add a `.cpp` file to `Tests/` and reconfigure to pick it up. SampleRealm-Modules' `PluginTestHelpers.h`,
 included by `Tests/TestHelpers.h`, has helpers for setting parameters and processing buffers. Set `-DENABLE_UNIT_TESTS=OFF` to skip them entirely.

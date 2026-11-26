@@ -8,6 +8,8 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
     // Set custom LookAndFeel globally for this editor
     setLookAndFeel(&customLookAndFeel);
 
+    setupSlider(preDelaySlider, Parameters::preDelayId, "PRE-DELAY");
+    preDelaySlider.getSlider().setTextValueSuffix(" ms");
     setupSlider(roomSizeSlider, Parameters::roomSizeId, "ROOM SIZE");
     setupSlider(dampingSlider, Parameters::dampingId, "DAMPING");
     setupSlider(widthSlider, Parameters::widthId, "WIDTH");
@@ -34,6 +36,24 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor (AudioPluginAud
 
     delaySyncAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processorRef.getAPVTS(), Parameters::delaySyncId.getParamID(), delaySyncButton);
     showDelayTimeKnob();
+
+    setupTextToggle(reverbTypeButton, {});
+    reverbTypeButton.setClickingTogglesState(false);
+    reverbTypeButton.setColour(juce::TextButton::textColourOffId, juce::Colour(CustomLookAndFeel::primaryRed).withAlpha(0.8f));
+    reverbTypeButton.setComponentID(Parameters::reverbTypeId.getParamID());
+
+    auto& reverbType = *processorRef.getAPVTS().getParameter(Parameters::reverbTypeId.getParamID());
+    reverbTypeAttachment = std::make_unique<juce::ParameterAttachment>(reverbType, [this, &reverbType](float type)
+    {
+        reverbTypeButton.setButtonText(reverbType.getText(reverbType.convertTo0to1(type), 0).toUpperCase());
+    });
+    reverbTypeAttachment->sendInitialUpdate();
+
+    reverbTypeButton.onClick = [this, &reverbType]
+    {
+        const auto next = juce::roundToInt(reverbType.convertFrom0to1(reverbType.getValue())) + 1;
+        reverbTypeAttachment->setValueAsCompleteGesture(static_cast<float>(next % reverbType.getNumSteps()));
+    };
 
     addAndMakeVisible(spectrumAnalyzer);
 
@@ -97,17 +117,16 @@ void AudioPluginAudioProcessorEditor::showDelayTimeKnob()
     delayTimeSlider.setVisible(! synced);
 }
 
-void AudioPluginAudioProcessorEditor::drawStage(juce::Graphics& g, const juce::String& name,
-                                                const LabeledSlider& firstSlider, bool hasNextStage)
+void AudioPluginAudioProcessorEditor::drawStage(juce::Graphics& g, const juce::String& name, int row)
 {
     // A small name in a column beside the knobs
-    auto column = juce::Rectangle<int>(firstSlider.getX() - stageGap - stageWidth, firstSlider.getY(), stageWidth, knobSize).toFloat();
+    auto column = juce::Rectangle<int>(slidersX - stageGap - stageWidth, rowsTop + rowPitch * row, stageWidth, knobSize).toFloat();
 
     g.setFont(CustomLookAndFeel::orbitronBold().withPointHeight(8.0f));
     g.setColour(juce::Colour(CustomLookAndFeel::offWhite).withAlpha(0.8f));
     g.drawText(name, column.withY(column.getY() + stageNameTop).withHeight(stageNameHeight), juce::Justification::centred);
 
-    if (! hasNextStage)
+    if (row == numStages - 1)
         return;
 
     // Down to the next stage's name
@@ -149,10 +168,10 @@ void AudioPluginAudioProcessorEditor::paint (juce::Graphics& g)
     titleText.draw(g, spectrumAnalyzer.getBounds().toFloat());
 
     // Top down, in the order the signal goes through them
-    drawStage(g, "SEND", highpassFreqSlider, true);
-    drawStage(g, "DELAY", delayNoteSlider, true);
-    drawStage(g, "REVERB", roomSizeSlider, true);
-    drawStage(g, "OUTPUT", duckSlider, false);
+    int row = 0;
+
+    for (const auto* name : { "SEND", "DELAY", "REVERB", "OUTPUT" })
+        drawStage(g, name, row++);
 }
 
 void AudioPluginAudioProcessorEditor::resized()
@@ -166,28 +185,33 @@ void AudioPluginAudioProcessorEditor::resized()
 
     int sliderHeight = knobSize + labelHeight;
 
-    // A row per stage: its name in a column on the left, then its sliders, the pair centred
-    int rowWidth = stageWidth + stageGap + sliderWidth * knobsPerRow + knobSpacing * (knobsPerRow - 1);
-    int slidersX = (bounds.getWidth() - rowWidth) / 2 + stageWidth + stageGap;
-
+    // A row per stage: its name in a column on the left, then its sliders, each in the middle of an equal share of the row.
+    // The same sum as knobLeft in webui/src/Editor.tsx
     auto layOutRow = [&](int row, std::initializer_list<LabeledSlider*> sliders)
     {
-        int x = slidersX;
+        const auto count = static_cast<int>(sliders.size());
+        int column = 0;
 
         for (auto* slider : sliders)
         {
-            slider->setBounds(x, rowsTop + rowPitch * row, sliderWidth, sliderHeight);
-            x += sliderWidth + knobSpacing;
+            const auto left = slidersX + ((2 * column++ + 1) * slidersWidth - count * sliderWidth) / (2 * count);
+            slider->setBounds(left, rowsTop + rowPitch * row, sliderWidth, sliderHeight);
         }
     };
 
     layOutRow(0, { &highpassFreqSlider, &lowpassFreqSlider, &driveSlider });
     layOutRow(1, { &delayNoteSlider, &delayFeedbackSlider, &delayLevelSlider });
-    layOutRow(2, { &roomSizeSlider, &dampingSlider, &widthSlider });
+    layOutRow(2, { &preDelaySlider, &roomSizeSlider, &dampingSlider, &widthSlider });
     layOutRow(3, { &duckSlider, &mixSlider });
 
     delayTimeSlider.setBounds(delayNoteSlider.getBounds());
 
     // Under the knob it switches
-    delaySyncButton.setBounds(delayNoteSlider.getBounds().getCentreX() - syncWidth / 2, delayNoteSlider.getBottom() + 1, syncWidth, syncHeight);
+    auto underKnob = [](const LabeledSlider& slider)
+    {
+        return juce::Rectangle<int>(slider.getBounds().getCentreX() - syncWidth / 2, slider.getBottom() + 1, syncWidth, syncHeight);
+    };
+
+    delaySyncButton.setBounds(underKnob(delayNoteSlider));
+    reverbTypeButton.setBounds(underKnob(roomSizeSlider));
 }

@@ -8,6 +8,12 @@ namespace ParameterSpecs
     // Effect::delayNoteBeats has each one's length
     inline constexpr std::array<const char*, 7> delayNotes { "1/16", "1/8T", "1/8", "1/8D", "1/4", "1/4D", "1/2" };
 
+    // In the order of Effect::ReverbType
+    inline constexpr std::array<const char*, 3> reverbTypes { "Classic", "Plate", "Hall" };
+
+    // Switching fades the reverb out and back in, so hosts shouldn't automate it
+    inline constexpr Spec reverbType    = notAutomatable (choice ("reverbType", "Reverb Type", reverbTypes, 0));
+    inline constexpr Spec preDelay      { "preDelay",      "Pre-Delay",      Kind::real,  0.0f,   250.0f,    0.0f, 1.0f, 0.5f };
     inline constexpr Spec roomSize      { "roomSize",      "Room Size",      Kind::real,  0.0f,     1.0f,    0.8f, 0.01f };
     inline constexpr Spec damping       { "damping",       "Damping",        Kind::real,  0.0f,     1.0f,    0.8f, 0.01f };
     inline constexpr Spec width         { "width",         "Width",          Kind::real,  0.0f,     1.0f,    0.5f, 0.01f };
@@ -31,6 +37,7 @@ namespace ParameterSpecs
     // The host's parameter order
     inline constexpr std::array all { &roomSize, &damping, &width, &mix, &highpassFreq, &lowpassFreq, &drive,
                                       &delaySync, &delayNote, &delayTime, &delayFeedback, &delayLevel, &duck, &outputGain,
+                                      &reverbType, &preDelay,
                                       &spectrumBypass };
 
     static_assert (areValid (all));

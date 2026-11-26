@@ -38,6 +38,8 @@ TEST_CASE_METHOD (ProcessorFixture, "Parameters match the snapshot hosts rely on
         { "delayLevel",     1, "Delay Level",     "",  0.0f,     1.0f, 0.01f, 1.0f,    0.0f, { "0.00", "0.50", "1.00" },  true,  false },
         { "duck",           1, "Duck",            "",  0.0f,     1.0f, 0.01f, 1.0f,    0.0f, { "0.00", "0.50", "1.00" },  true,  false },
         { "outputGain",     1, "Output Gain",     "", -24.0f,   12.0f,  0.1f, 1.0f,    0.0f, { "-24.0", "-6.0", "12.0" }, true,  false },
+        { "reverbType",     1, "Reverb Type",     "",  0.0f,     2.0f,  1.0f, 1.0f,    0.0f, { "Classic", "Plate", "Hall" }, false, false },
+        { "preDelay",       1, "Pre-Delay",       "",  0.0f,   250.0f,  1.0f, 0.5f,    0.0f, { "0", "63", "250" },        true,  false },
         { "spectrumBypass", 1, "Spectrum Bypass", "",  0.0f,     1.0f,  1.0f, 1.0f,    0.0f, { "Off", "On", "On" },       false, true  },
     };
 
@@ -123,14 +125,16 @@ TEST_CASE_METHOD (ProcessorFixture, "Mono or stereo out is supported, from as ma
     CHECK_FALSE (processor.isBusesLayoutSupported ({ { Set::create5point1() }, { Set::create5point1() } }));
 }
 
-TEST_CASE_METHOD (ProcessorFixture, "A mono track into stereo gets its input on both sides", "[buses]")
+TEST_CASE_METHOD (ProcessorFixture, "A mono track into stereo gets its input on both sides, even when prepared with no block", "[buses]")
 {
     using Set = juce::AudioChannelSet;
+    const auto preparedBlock = GENERATE (blockSize, 0);
+    CAPTURE (preparedBlock);
 
     AudioPluginAudioProcessor monoIntoStereo;
     REQUIRE (monoIntoStereo.setBusesLayout ({ { Set::mono() }, { Set::stereo() } }));
-    monoIntoStereo.setRateAndBufferSizeDetails (sampleRate, blockSize);
-    monoIntoStereo.prepareToPlay (sampleRate, blockSize);
+    monoIntoStereo.setRateAndBufferSizeDetails (sampleRate, preparedBlock);
+    monoIntoStereo.prepareToPlay (sampleRate, preparedBlock);
     setParameter (monoIntoStereo, Parameters::mixId, 0.0f);
 
     // Hosts leave whatever was there in the second channel
@@ -142,6 +146,34 @@ TEST_CASE_METHOD (ProcessorFixture, "A mono track into stereo gets its input on 
     for (int channel = 0; channel < 2; ++channel)
         for (int i = 0; i < blockSize; ++i)
             REQUIRE (juce::exactlyEqual (buffer.getSample (channel, i), input.getSample (0, i)));
+}
+
+TEST_CASE_METHOD (ProcessorFixture, "The tail of a synced delay is at the host's last tempo", "[tail]")
+{
+    struct PlayHead : juce::AudioPlayHead
+    {
+        juce::Optional<PositionInfo> getPosition() const override
+        {
+            PositionInfo info;
+            info.setBpm (60.0);
+            return info;
+        }
+    };
+
+    setParameter (processor, Parameters::delaySyncId, 1.0f);
+    setParameter (processor, Parameters::delayNoteId, 4.0f);
+    setParameter (processor, Parameters::delayFeedbackId, 0.0f);
+    setParameter (processor, Parameters::delayLevelId, 1.0f);
+    const auto atTheDefaultTempo = processor.getTailLengthSeconds();
+
+    PlayHead playHead;
+    processor.setPlayHead (&playHead);
+    auto buffer = makeSineBuffer (2, blockSize, 440.0f, 0.5f);
+    process (processor, buffer);
+    processor.setPlayHead (nullptr);
+
+    // One quarter note, at 60 BPM and at the transport's 174
+    CHECK_THAT (processor.getTailLengthSeconds() - atTheDefaultTempo, WithinAbs (1.0 - 60.0 / Transport().bpm, 1.0e-6));
 }
 
 //==============================================================================

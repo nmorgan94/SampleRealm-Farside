@@ -88,3 +88,22 @@ export function ToggleText({ backend, id, text, style }: ToggleTextProps) {
     </button>
   );
 }
+
+// A text-only button that shows a choice parameter's value, and moves on to the next when clicked
+export function ChoiceText({ backend, id, style }: Omit<ToggleTextProps, 'text'>) {
+  const { value, commit } = useParam(backend, id);
+  const { choices, name } = backend.param(id);
+  const index = Math.round(value);
+
+  return (
+    <button
+      type="button"
+      aria-label={name}
+      className="absolute flex cursor-pointer items-center justify-center text-red/80 uppercase"
+      style={{ ...style, fontSize: 7 }}
+      onClick={() => commit((index + 1) % choices.length)}
+    >
+      {choices[index]}
+    </button>
+  );
+}

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<PRESET name="Dotted Bounce" category="Drums" author="SampleRealm" formatVersion="1">
+<PRESET name="Dotted Bounce" category="Echo" author="SampleRealm" formatVersion="1">
   <Parameters>
     <PARAM id="roomSize" value="0.4"/>
     <PARAM id="damping" value="0.6"/>
@@ -15,5 +15,7 @@
     <PARAM id="delayLevel" value="0.7"/>
     <PARAM id="duck" value="0.3"/>
     <PARAM id="outputGain" value="0.0"/>
+    <PARAM id="reverbType" value="0.0"/>
+    <PARAM id="preDelay" value="0.0"/>
   </Parameters>
 </PRESET>
